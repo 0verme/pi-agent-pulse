@@ -237,12 +237,13 @@ export default function createPiPulseExtension(pi: ExtensionAPI): void {
 		touch(ctx);
 	});
 
-	// agent_settled is the verified no-more-retry/no-more-follow-up boundary.
+	// agent_settled is a verified no-more-retry/no-more-follow-up boundary.
+	// Pi 0.84.x/0.85.x does not provide a success, failure, or abort reason here.
 	pi.on("agent_settled", (_event, ctx) => {
 		safeObserve("agent_settled", () => {
 			if (notificationSent) return;
 			notificationSent = true;
-			manager.completeTask(readSessionId(ctx), config.privacy.includeSummary ? latestOutput : undefined);
+			manager.settleTask(readSessionId(ctx), config.privacy.includeSummary ? latestOutput : undefined);
 		});
 	});
 

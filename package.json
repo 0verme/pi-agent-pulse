@@ -2,6 +2,25 @@
 	"name": "pi-agent-pulse",
 	"version": "0.1.0",
 	"description": "Task monitoring, watchdogs and pluggable notifications for Pi Agent.",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/0verme/pi-agent-pulse.git"
+	},
+	"homepage": "https://github.com/0verme/pi-agent-pulse#readme",
+	"bugs": {
+		"url": "https://github.com/0verme/pi-agent-pulse/issues"
+	},
+	"keywords": [
+		"pi-agent",
+		"pi-extension",
+		"agent-monitoring",
+		"watchdog",
+		"feishu",
+		"webhook",
+		"ai-agent"
+	],
+	"license": "MIT",
+	"author": "0verme",
 	"type": "module",
 	"engines": {
 		"node": ">=22.19.0"
@@ -25,17 +44,25 @@
 		"LICENSE"
 	],
 	"scripts": {
+		"prepack": "npm run build",
 		"build": "tsc -p tsconfig.build.json",
 		"typecheck": "tsc -p tsconfig.json --noEmit",
 		"test": "vitest run",
+		"test:package": "npm run build && node scripts/package-smoke.mjs",
 		"lint": "eslint .",
 		"format": "prettier --write .",
 		"format:check": "prettier --check ."
 	},
-	"dependencies": {
-		"@earendil-works/pi-coding-agent": "0.84.4"
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=0.84.4 <0.86.0"
+	},
+	"peerDependenciesMeta": {
+		"@earendil-works/pi-coding-agent": {
+			"optional": true
+		}
 	},
 	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "0.84.4",
 		"@eslint/js": "9.39.1",
 		"@types/node": "22.19.19",
 		"eslint": "9.39.1",

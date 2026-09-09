@@ -20,4 +20,22 @@ describe("configuration", () => {
 		expect(config.privacy.includeWorkdir).toBe(true);
 		expect(DEFAULT_CONFIG.channels.feishu.webhook).toBe("");
 	});
+
+	it("accepts the minimal Feishu config and fills every omitted section from defaults", () => {
+		const config = normalizeConfig({
+			channels: {
+				feishu: { enabled: true, webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/example" },
+			},
+		});
+
+		expect(config.channels.feishu).toEqual({
+			enabled: true,
+			webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/example",
+			timeoutMs: DEFAULT_CONFIG.channels.feishu.timeoutMs,
+		});
+		expect(config.channels.webhook).toEqual(DEFAULT_CONFIG.channels.webhook);
+		expect(config.watchdog).toEqual(DEFAULT_CONFIG.watchdog);
+		expect(config.privacy).toEqual(DEFAULT_CONFIG.privacy);
+		expect(config.hostname).toBeUndefined();
+	});
 });

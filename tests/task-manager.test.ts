@@ -101,4 +101,20 @@ describe("TaskManager and Watchdog", () => {
 		expect(manager.getTask("session-tie")?.state).toBe("RUNNING");
 		manager.endSession("session-tie");
 	});
+
+	it("marks agent_settled as lifecycle settlement without guessing an outcome", () => {
+		const clock = new FakeClock();
+		const events: Array<{ type: string; taskId: string; state: string; metadata?: unknown }> = [];
+		const manager = createManager(clock, events);
+
+		manager.startTask({ sessionId: "session-settled", taskId: "task-settled" });
+		const settled = manager.settleTask("session-settled", "final output", 100);
+
+		expect(settled?.type).toBe("TASK_COMPLETED");
+		expect(settled?.state).toBe("COMPLETED");
+		expect(settled?.metadata).toEqual({ outcome: "settled", signal: "agent_settled" });
+		expect(events.some((event) => event.type === "TASK_FAILED")).toBe(false);
+		expect(events.some((event) => event.type === "TASK_ABORTED")).toBe(false);
+		expect(manager.getTask("session-settled")).toBeUndefined();
+	});
 });
