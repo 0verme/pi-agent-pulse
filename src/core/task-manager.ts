@@ -213,8 +213,17 @@ export class TaskManager {
 		return true;
 	}
 
+	/** Mark a task completed from an explicit completion signal. */
 	public completeTask(sessionId: string, summary?: string, endedAt = this.clock.now()): TaskEvent | undefined {
 		return this.finishTask(sessionId, "COMPLETED", summary, endedAt);
+	}
+
+	/** Mark the Pi lifecycle settled; settlement is not a business-success claim. */
+	public settleTask(sessionId: string, summary?: string, endedAt = this.clock.now()): TaskEvent | undefined {
+		return this.finishTask(sessionId, "COMPLETED", summary, endedAt, {
+			outcome: "settled",
+			signal: "agent_settled",
+		});
 	}
 
 	public failTask(sessionId: string, summary?: string, endedAt = this.clock.now()): TaskEvent | undefined {
@@ -267,6 +276,7 @@ export class TaskManager {
 		state: Extract<TaskState, "COMPLETED" | "FAILED" | "ABORTED">,
 		summary: string | undefined,
 		endedAt: number,
+		metadata?: Record<string, TaskMetadataValue | undefined>,
 	): TaskEvent | undefined {
 		const task = this.tasks.get(sessionId);
 		if (!task || isTerminalState(task.state)) return undefined;
@@ -284,6 +294,7 @@ export class TaskManager {
 					endedAt,
 					durationMs: Math.max(0, endedAt - task.startedAt),
 					summary,
+					metadata,
 				},
 			),
 		);

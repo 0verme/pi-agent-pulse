@@ -63,7 +63,7 @@ config/*        -> no concrete channel implementation
 - `RUNNING`：Pi agent 正在运行，且当前没有 active tool
 - `TOOL_RUNNING`：收到明确的 `tool_execution_start`，至少一个 tool 正在执行
 - `POSSIBLY_STALLED`：Watchdog 根据一段时间没有 Pi activity 推断的状态
-- `COMPLETED`：收到 `agent_settled`，表示本次 Pi agent lifecycle 已结束
+- `COMPLETED`：收到 `agent_settled`，表示本次 Pi agent lifecycle 已结束；当前 adapter 会在事件 metadata 中标记 `outcome=settled`，不等价于业务成功
 - `FAILED`：由明确的 adapter/调用方失败信号驱动；当前 Pi adapter 尚未把它自动映射出来
 - `ABORTED`：仅允许明确的调用方信号驱动；当前 Pi adapter 不会从 shutdown 或 timeout 猜测它
 - `UNKNOWN`：事实不足时保留不确定性
@@ -175,7 +175,7 @@ Prototype 中已实际使用并在本项目 adapter 中按边界重用的行为�
 - `agent_start` 建立 task lifecycle；没有新的 prompt 时保留 retry/continuation 的现有 task
 - tool start/update/end 更新 activity 和当前 tool
 - turn/message/agent end 更新 last activity 与 bounded final summary
-- `agent_settled` 作为无 retry、无 compaction、无 queued follow-up 的 delivery boundary
+- `agent_settled` 作为无 retry、无 compaction、无 queued follow-up 的 delivery boundary，并映射为带 `outcome=settled` metadata 的 `TASK_COMPLETED`
 - `session_shutdown` 清理 timers 和 in-memory state
 
 以下部分目前不能由已核对的 lifecycle 类型可靠确定，因此 adapter 不伪造：
@@ -186,3 +186,9 @@ Prototype 中已实际使用并在本项目 adapter 中按边界重用的行为�
 - `POSSIBLY_STALLED` 是 Watchdog heuristic，不是 Pi 明确报告的卡死
 
 修改 Pi lifecycle adapter 前，必须重新核对实际安装版本的 runtime type，不根据旧文档或印象添加 event。
+
+## 11. Package 分发边界
+
+Pi 的 `DefaultPackageManager` 对 Git package 执行 clone 后的 production `npm install --omit=dev`，不会自动运行项目 build。为保证 `pi install git:...` 在陌生环境可用，release branch 会提交 `dist/`；package manifest 仍只加载 `dist/extension/pi.js`，不依赖开发机上的 `node_modules`。
+
+`@earendil-works/pi-coding-agent` 是 host-provided peer dependency，开发基线固定为 `0.84.4`，已对照 `0.85.1` 的相关 lifecycle types 验证，保守兼容范围为 `>=0.84.4 <0.86.0`。`npm pack` 的发布内容由 package smoke 检查，npm registry publish 不属于本轮操作。

@@ -25,6 +25,12 @@ export type TaskMetadata = Readonly<Record<string, TaskMetadataValue>>;
 /**
  * Stable, channel-neutral notification contract emitted by the core.
  *
+ * The current Pi adapter emits `TASK_COMPLETED` with `metadata.outcome=settled`
+ * when Pi reports `agent_settled`; this means the lifecycle has no queued retry,
+ * compaction, or follow-up left, not that the task business operation succeeded.
+ * `TASK_FAILED` and `TASK_ABORTED` require an explicit runtime signal and are not
+ * inferred from assistant text, summaries, tool names, or session shutdown.
+ *
  * The event deliberately contains summaries rather than prompts, tool arguments,
  * source code, environment variables, or full conversation contents.
  */

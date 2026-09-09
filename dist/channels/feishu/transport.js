@@ -1,0 +1,88 @@
+import { renderFeishuPayload } from "./renderer.js";
+const ALLOWED_HOSTS = new Set(["open.feishu.cn", "open.larksuite.com"]);
+function validateFeishuWebhookUrl(value) {
+    try {
+        const url = new URL(value.trim());
+        if (url.protocol !== "https:" ||
+            !url.hostname ||
+            url.username ||
+            url.password ||
+            !ALLOWED_HOSTS.has(url.hostname.toLowerCase()) ||
+            !url.pathname.startsWith("/open-apis/")) {
+            throw new Error("unsafe destination");
+        }
+        return url;
+    }
+    catch {
+        throw new Error("Invalid Feishu webhook URL");
+    }
+}
+export class FetchFeishuTransport {
+    async post(request) {
+        const target = validateFeishuWebhookUrl(request.url);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), request.timeoutMs);
+        try {
+            const outboundRequest = new Request(target, {
+                method: "POST",
+                headers: request.headers,
+                body: request.body,
+                signal: controller.signal,
+                redirect: "error",
+            });
+            const response = await fetch(outboundRequest);
+            if (!response.ok)
+                throw new Error("Feishu webhook returned a non-success status");
+            const text = await response.text();
+            if (!text)
+                return;
+            try {
+                const result = JSON.parse(text);
+                if (typeof result === "object" &&
+                    result !== null &&
+                    "code" in result &&
+                    typeof result.code === "number" &&
+                    result.code !== 0) {
+                    throw new Error("Feishu webhook rejected the event");
+                }
+            }
+            catch (error) {
+                if (error instanceof Error && error.message === "Feishu webhook rejected the event")
+                    throw error;
+                // A non-JSON success body is accepted for compatibility with gateways.
+            }
+        }
+        catch (error) {
+            if (error instanceof Error &&
+                (error.message === "Feishu webhook returned a non-success status" ||
+                    error.message === "Feishu webhook rejected the event")) {
+                throw error;
+            }
+            throw new Error("Feishu webhook request failed");
+        }
+        finally {
+            clearTimeout(timeout);
+        }
+    }
+}
+/** Minimal outbound Feishu adapter; no inbound bot or query behavior is included. */
+export class FeishuChannel {
+    id = "feishu";
+    webhook;
+    timeoutMs;
+    transport;
+    constructor(options) {
+        this.webhook = validateFeishuWebhookUrl(options.webhook).toString();
+        this.timeoutMs = Math.min(120_000, Math.max(100, options.timeoutMs ?? 10_000));
+        this.transport = options.transport ?? new FetchFeishuTransport();
+    }
+    send(event) {
+        return this.transport.post({
+            url: this.webhook,
+            body: JSON.stringify(renderFeishuPayload(event)),
+            timeoutMs: this.timeoutMs,
+            headers: { "content-type": "application/json; charset=utf-8" },
+        });
+    }
+}
+//# sourceMappingURL=transport.js.map
