@@ -1,0 +1,52 @@
+{
+	"name": "pi-agent-pulse",
+	"version": "0.1.0",
+	"description": "Task monitoring, watchdogs and pluggable notifications for Pi Agent.",
+	"type": "module",
+	"engines": {
+		"node": ">=22.19.0"
+	},
+	"packageManager": "npm@11.12.1",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./extension": {
+			"types": "./dist/extension/pi.d.ts",
+			"import": "./dist/extension/pi.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"test": "vitest run",
+		"lint": "eslint .",
+		"format": "prettier --write .",
+		"format:check": "prettier --check ."
+	},
+	"dependencies": {
+		"@earendil-works/pi-coding-agent": "0.84.4"
+	},
+	"devDependencies": {
+		"@eslint/js": "9.39.1",
+		"@types/node": "22.19.19",
+		"eslint": "9.39.1",
+		"prettier": "3.6.2",
+		"typescript": "5.9.3",
+		"typescript-eslint": "8.46.4",
+		"vitest": "4.1.11"
+	},
+	"pi": {
+		"extensions": [
+			"./dist/extension/pi.js"
+		]
+	}
+}
