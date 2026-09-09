@@ -1,0 +1,27 @@
+{
+	"hostname": "my-machine",
+	"channels": {
+		"webhook": {
+			"enabled": true,
+			"url": "YOUR_WEBHOOK_URL",
+			"timeoutMs": 10000
+		},
+		"feishu": {
+			"enabled": false,
+			"webhook": "YOUR_WEBHOOK_URL",
+			"timeoutMs": 10000
+		}
+	},
+	"watchdog": {
+		"longTaskNoticeMinutes": 45,
+		"longTaskWarningMinutes": 75,
+		"longTaskCriticalMinutes": 120,
+		"longToolMinutes": 20,
+		"stalledMinutes": 15
+	},
+	"privacy": {
+		"includeHost": true,
+		"includeWorkdir": false,
+		"includeSummary": true
+	}
+}
