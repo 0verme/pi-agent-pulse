@@ -3,38 +3,73 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { gunzipSync } from "node:zlib";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const packageJson = JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
-const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-const tarCommand = process.platform === "win32" ? "tar.exe" : "tar";
 
-function run(command, args, cwd) {
-	const result = spawnSync(command, args, {
+function runProcess(args, cwd, label) {
+	const result = spawnSync(process.execPath, args, {
 		cwd,
 		encoding: "utf8",
 		stdio: ["ignore", "pipe", "pipe"],
-		shell: process.platform === "win32" && command === npmCommand,
+		shell: false,
 	});
 	if (result.error) throw result.error;
 	if (result.status !== 0) {
 		const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
-		throw new Error(`${command} ${args.join(" ")} failed with exit code ${result.status}: ${output}`);
+		throw new Error(`${label} failed with exit code ${result.status}: ${output}`);
 	}
 	return result.stdout ?? "";
+}
+
+function runNpm(args, cwd) {
+	const npmExecPath = process.env.npm_execpath;
+	if (!npmExecPath) throw new Error("Package smoke must be run through npm");
+	return runProcess([npmExecPath, ...args], cwd, `npm ${args.join(" ")}`);
 }
 
 function packageFiles(packResult) {
 	return new Set((packResult.files ?? []).map((file) => file.path.replaceAll("\\", "/")));
 }
 
+function readPackageJson() {
+	try {
+		return JSON.parse(readFileSync(join(repoRoot, "package.json"), "utf8"));
+	} catch {
+		throw new Error("Could not parse package.json for package smoke");
+	}
+}
+
+function readTarballEntries(tarballPath) {
+	let archive;
+	try {
+		archive = gunzipSync(readFileSync(tarballPath));
+	} catch {
+		throw new Error("Could not read npm pack tarball");
+	}
+
+	const entries = [];
+	for (let offset = 0; offset + 512 <= archive.length; ) {
+		const header = archive.subarray(offset, offset + 512);
+		if (header.every((byte) => byte === 0)) break;
+		const name = header.subarray(0, 100).toString("utf8").replace(/\0.*$/, "");
+		const prefix = header.subarray(345, 500).toString("utf8").replace(/\0.*$/, "");
+		const size = Number.parseInt(header.subarray(124, 136).toString("utf8").trim() || "0", 8);
+		if (!Number.isFinite(size) || size < 0) throw new Error("Invalid npm pack tarball entry");
+		entries.push(prefix ? `${prefix}/${name}` : name);
+		offset += 512 + Math.ceil(size / 512) * 512;
+	}
+	return entries;
+}
+
+const packageJson = readPackageJson();
 let tempRoot;
 try {
 	tempRoot = mkdtempSync(join(tmpdir(), "pi-agent-pulse-package-smoke-"));
 	const packDir = join(tempRoot, "pack");
 	mkdirSync(packDir);
 
-	const packOutput = run(npmCommand, ["pack", "--ignore-scripts", "--json", "--pack-destination", packDir], repoRoot);
+	const packOutput = runNpm(["pack", "--ignore-scripts", "--json", "--pack-destination", packDir], repoRoot);
 	const packResult = JSON.parse(packOutput)[0];
 	if (!packResult?.filename) throw new Error("npm pack did not return a tarball filename");
 
@@ -46,10 +81,7 @@ try {
 		if (!files.has(required)) throw new Error(`Tarball file list is missing ${required}`);
 	}
 
-	const tarballEntries = run(tarCommand, ["-tzf", tarballPath], packDir)
-		.split(/\r?\n/)
-		.map((entry) => entry.trim())
-		.filter(Boolean);
+	const tarballEntries = readTarballEntries(tarballPath);
 	for (const required of [
 		"package/package.json",
 		"package/README.md",
@@ -69,8 +101,7 @@ try {
 			2,
 		),
 	);
-	run(
-		npmCommand,
+	runNpm(
 		[
 			"install",
 			"--ignore-scripts",
@@ -91,7 +122,7 @@ try {
 		'throw new Error("Pi Pulse extension exports are invalid");',
 		"}",
 	].join("\n");
-	run(process.execPath, ["--input-type=module", "-e", importScript], consumerDir);
+	runProcess(["--input-type=module", "-e", importScript], consumerDir, "extension import");
 
 	console.log(`Package smoke passed for ${packageJson.name}@${packageJson.version}: ${packResult.filename}`);
 	console.log("Verified package.json, README.md, LICENSE, dist/extension/pi.js, install, and extension exports.");
