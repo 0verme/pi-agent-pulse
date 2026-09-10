@@ -62,8 +62,15 @@ describe("Pi lifecycle adapter", () => {
 			await handlers.get("agent_settled")?.({ type: "agent_settled" }, context);
 			await new Promise((resolve) => setTimeout(resolve, 0));
 
-			const events = requestBodies.map((body) => JSON.parse(body) as { type: string; metadata?: unknown });
+			const events = requestBodies.map(
+				(body) =>
+					JSON.parse(body) as { type: string; metadata?: unknown; startedAt?: string; endedAt?: string },
+			);
 			expect(events.map((event) => event.type)).toEqual(["TASK_STARTED", "TASK_COMPLETED"]);
+			expect(events[0]?.startedAt).toEqual(expect.any(String));
+			expect(events[1]?.startedAt).toBe(events[0]?.startedAt);
+			expect(events[1]?.endedAt).toEqual(expect.any(String));
+			expect(Date.parse(events[0]?.startedAt ?? "NaN")).toBeLessThan(Date.parse(events[1]?.endedAt ?? "NaN"));
 			expect(events[1]?.metadata).toEqual({ outcome: "settled", signal: "agent_settled" });
 			expect(events.some((event) => event.type === "TASK_FAILED")).toBe(false);
 			expect(events.some((event) => event.type === "TASK_ABORTED")).toBe(false);

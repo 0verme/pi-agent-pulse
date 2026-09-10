@@ -16,8 +16,44 @@ function display(value: string | undefined, fallback = "unknown"): string {
 function duration(event: TaskEvent): string {
 	if (event.durationMs === undefined) return "unknown";
 	const seconds = Math.floor(event.durationMs / 1_000);
-	if (seconds < 60) return `${seconds}s`;
-	return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+	if (seconds < 60) return `${seconds}秒`;
+	return `${Math.floor(seconds / 60)}分${seconds % 60}秒`;
+}
+
+function pad(value: number): string {
+	return value.toString().padStart(2, "0");
+}
+
+/** Format both lifecycle timestamps in the event's canonical UTC timezone. */
+function formatTimestamp(value: string | undefined): string | undefined {
+	if (!value) return undefined;
+	const timestamp = Date.parse(value);
+	if (!Number.isFinite(timestamp)) return undefined;
+
+	const date = new Date(timestamp);
+	return `${date.getUTCFullYear().toString().padStart(4, "0")}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+}
+
+function isTaskEndEvent(event: TaskEvent): boolean {
+	return event.type === "TASK_COMPLETED" || event.type === "TASK_FAILED" || event.type === "TASK_ABORTED";
+}
+
+function warnMissingStartedAt(): void {
+	try {
+		process.emitWarning("[pi-pulse] Task end event has no valid startedAt; start time omitted.");
+	} catch {
+		// Logging is best effort and must not affect notification delivery.
+	}
+}
+
+function lifecycleTimes(event: TaskEvent): string[] {
+	if (!isTaskEndEvent(event)) return [];
+
+	const startedAt = formatTimestamp(event.startedAt);
+	if (!startedAt) warnMissingStartedAt();
+
+	const endedAt = formatTimestamp(event.endedAt);
+	return [...(startedAt ? [`开始时间：${startedAt}`] : []), ...(endedAt ? [`结束时间：${endedAt}`] : [])];
 }
 
 function truncate(value: string): string {
@@ -36,7 +72,8 @@ export function renderFeishuText(event: TaskEvent): string {
 		`Host: ${display(event.host)}`,
 		`Repository: ${display(event.repo)}`,
 		`Branch: ${display(event.branch)}`,
-		`Duration: ${duration(event)}`,
+		`耗时：${duration(event)}`,
+		...lifecycleTimes(event),
 	];
 	if (event.currentTool) lines.push(`Tool: ${event.currentTool}`);
 	if (event.summary) lines.push(`Summary: ${event.summary}`);

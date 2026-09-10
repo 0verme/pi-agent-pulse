@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { TaskEvent } from "../src/core/events.js";
 import { TaskManager } from "../src/core/task-manager.js";
 import { FakeClock } from "./helpers/fake-clock.js";
 
@@ -116,5 +117,53 @@ describe("TaskManager and Watchdog", () => {
 		expect(events.some((event) => event.type === "TASK_FAILED")).toBe(false);
 		expect(events.some((event) => event.type === "TASK_ABORTED")).toBe(false);
 		expect(manager.getTask("session-settled")).toBeUndefined();
+	});
+
+	it("keeps task startedAt stable across activity and tool events", () => {
+		const clock = new FakeClock();
+		const events: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			taskIdFactory: () => "task-lifecycle",
+			eventIdFactory: () => `event-${events.length + 1}`,
+			onEvent: (event) => events.push(event),
+		});
+
+		manager.startTask({ sessionId: "session-lifecycle", taskId: "task-lifecycle", startedAt: 1_000 });
+		manager.startTask({ sessionId: "session-lifecycle", taskId: "task-retry", startedAt: 2_000 });
+		manager.recordActivity("session-lifecycle", 2_000);
+		manager.startTool("session-lifecycle", { callId: "call-1", name: "bash", startedAt: 3_000 });
+		manager.updateTool("session-lifecycle", "call-1", 4_000);
+		manager.endTool("session-lifecycle", "call-1", 5_000);
+
+		expect(manager.getTask("session-lifecycle")?.startedAt).toBe(1_000);
+		expect(manager.getTask("session-lifecycle")?.lastActivityAt).toBe(5_000);
+
+		const completed = manager.completeTask("session-lifecycle", undefined, 6_000);
+		expect(completed?.startedAt).toBe("1970-01-01T00:00:01.000Z");
+		expect(completed?.endedAt).toBe("1970-01-01T00:00:06.000Z");
+		expect(completed?.durationMs).toBe(5_000);
+		expect(Date.parse(completed?.startedAt ?? "NaN")).toBeLessThan(Date.parse(completed?.endedAt ?? "NaN"));
+	});
+
+	it("isolates startedAt for concurrent sessions", () => {
+		const clock = new FakeClock();
+		const completedEvents: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			taskIdFactory: () => "generated-task",
+			eventIdFactory: () => `event-${completedEvents.length + 1}`,
+			onEvent: (event) => completedEvents.push(event),
+		});
+
+		manager.startTask({ sessionId: "session-a", taskId: "task-a", startedAt: 1_000 });
+		manager.startTask({ sessionId: "session-b", taskId: "task-b", startedAt: 2_000 });
+		const completedA = manager.completeTask("session-a", undefined, 3_000);
+		const completedB = manager.completeTask("session-b", undefined, 4_000);
+
+		expect(completedA?.sessionId).toBe("session-a");
+		expect(completedA?.startedAt).toBe("1970-01-01T00:00:01.000Z");
+		expect(completedB?.sessionId).toBe("session-b");
+		expect(completedB?.startedAt).toBe("1970-01-01T00:00:02.000Z");
 	});
 });
