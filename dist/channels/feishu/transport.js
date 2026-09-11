@@ -1,4 +1,4 @@
-import { renderFeishuPayload } from "./renderer.js";
+import { createDisplayTimestampFormatter, renderFeishuPayload } from "./renderer.js";
 const ALLOWED_HOSTS = new Set(["open.feishu.cn", "open.larksuite.com"]);
 function validateFeishuWebhookUrl(value) {
     try {
@@ -70,16 +70,18 @@ export class FeishuChannel {
     id = "feishu";
     webhook;
     timeoutMs;
+    timestampFormatter;
     transport;
     constructor(options) {
         this.webhook = validateFeishuWebhookUrl(options.webhook).toString();
         this.timeoutMs = Math.min(120_000, Math.max(100, options.timeoutMs ?? 10_000));
+        this.timestampFormatter = createDisplayTimestampFormatter(options.displayTimezone);
         this.transport = options.transport ?? new FetchFeishuTransport();
     }
     send(event) {
         return this.transport.post({
             url: this.webhook,
-            body: JSON.stringify(renderFeishuPayload(event)),
+            body: JSON.stringify(renderFeishuPayload(event, { timestampFormatter: this.timestampFormatter })),
             timeoutMs: this.timeoutMs,
             headers: { "content-type": "application/json; charset=utf-8" },
         });

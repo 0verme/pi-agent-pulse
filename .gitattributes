@@ -1,0 +1,2 @@
+# Keep tracked TypeScript build output byte-for-byte stable across Windows and CI.
+dist/** text eol=lf

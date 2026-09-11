@@ -21,6 +21,13 @@ describe("configuration", () => {
 		expect(DEFAULT_CONFIG.channels.feishu.webhook).toBe("");
 	});
 
+	it("normalizes the optional display timezone without changing channel defaults", () => {
+		const config = normalizeConfig({ displayTimezone: " Asia/Shanghai " });
+
+		expect(config.displayTimezone).toBe("Asia/Shanghai");
+		expect(config.channels).toEqual(DEFAULT_CONFIG.channels);
+	});
+
 	it("accepts the minimal Feishu config and fills every omitted section from defaults", () => {
 		const config = normalizeConfig({
 			channels: {
@@ -36,6 +43,7 @@ describe("configuration", () => {
 		expect(config.channels.webhook).toEqual(DEFAULT_CONFIG.channels.webhook);
 		expect(config.watchdog).toEqual(DEFAULT_CONFIG.watchdog);
 		expect(config.privacy).toEqual(DEFAULT_CONFIG.privacy);
+		expect(config.displayTimezone).toBeUndefined();
 		expect(config.hostname).toBeUndefined();
 	});
 });

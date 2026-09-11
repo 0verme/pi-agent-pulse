@@ -1,6 +1,6 @@
 {
 	"name": "pi-agent-pulse",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Task monitoring, watchdogs and pluggable notifications for Pi Agent.",
 	"repository": {
 		"type": "git",
@@ -47,6 +47,7 @@
 	"scripts": {
 		"prepack": "npm run build",
 		"build": "tsc -p tsconfig.build.json",
+		"build:check": "npm run build && git diff --exit-code -- dist",
 		"typecheck": "tsc -p tsconfig.json --noEmit",
 		"test": "vitest run",
 		"test:package": "npm run build && node scripts/package-smoke.mjs",

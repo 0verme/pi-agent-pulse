@@ -2,7 +2,7 @@
 
 Pi Agent 的任务状态观察、Watchdog 与可插拔 outbound notification layer。
 
-> **v0.1.0**：首个公开可安装版本；当前版本只观察任务，不控制 Pi。
+> **v0.1.1**：修复 Feishu 用户可读时间的显示时区；当前版本只观察任务，不控制 Pi。
 
 ## What is it?
 
@@ -66,6 +66,16 @@ Windows 配置路径：
 ```
 
 如果目录不存在，请先创建 `~/.pi/agent`（Windows 对应 `%USERPROFILE%\.pi\agent`）。配置文件只应保存在本机；示例中的 `YOUR_FEISHU_WEBHOOK_URL` 必须替换为你自己的 URL。
+
+Feishu 的开始时间和结束时间默认使用 Pi 当前运行环境的 system local timezone。需要固定显示时区时，可在配置根部增加 IANA timezone：
+
+```json
+{
+	"displayTimezone": "Asia/Shanghai"
+}
+```
+
+也支持 `Asia/Tokyo`、`America/New_York` 和 `UTC` 等 IANA timezone；非法值会回退到 system local，并产生一次 bounded warning。该设置只影响 Feishu human-readable renderer，不改变 `TaskEvent` 的 canonical UTC timestamp，也不改变 Generic Webhook 的 ISO UTC payload。
 
 ### 4. 启动 Pi
 
@@ -165,7 +175,7 @@ flowchart TD
 
 ## Package Strategy
 
-- npm package 是 v0.1.0 的推荐安装路径；GitHub Git package 继续作为源码安装方式。
+- npm package 是 v0.1.1 的推荐安装路径；GitHub Git package 继续作为源码安装方式。
 - npm package 与 GitHub package 共用已提交的 `dist/` artifact；Git package installer 不自动 build。
 - `npm pack` tarball 只包含 `dist/`、`package.json`、`README.md` 和 `LICENSE` 所需的发布内容，并由 `npm run test:package` 做临时安装与 extension import smoke。
 - `@earendil-works/pi-coding-agent` 是 host-provided peer dependency，开发时固定使用 `0.84.4`；已验证兼容范围为 `>=0.84.4 <0.86.0`。
@@ -178,7 +188,7 @@ npm run typecheck
 npm run lint
 npm run format:check
 npm test
-npm run build
+npm run build:check
 npm run test:package
 ```
 

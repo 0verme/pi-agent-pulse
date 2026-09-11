@@ -7,7 +7,16 @@ export interface FeishuTextPayload {
 	};
 }
 
+export type DisplayTimestampInput = string | number | Date | undefined;
+export type DisplayTimestampFormatter = (value: DisplayTimestampInput) => string | undefined;
+
+export interface FeishuRenderOptions {
+	displayTimezone?: string;
+	timestampFormatter?: DisplayTimestampFormatter;
+}
+
 const MAX_FEISHU_TEXT_CHARS = 3_500;
+const INVALID_DISPLAY_TIMEZONE_WARNING = "[pi-pulse] Invalid displayTimezone; using system local timezone.";
 
 function display(value: string | undefined, fallback = "unknown"): string {
 	return value?.trim() || fallback;
@@ -20,18 +29,74 @@ function duration(event: TaskEvent): string {
 	return `${Math.floor(seconds / 60)}分${seconds % 60}秒`;
 }
 
-function pad(value: number): string {
-	return value.toString().padStart(2, "0");
+function createIntlFormatter(timezone?: string): Intl.DateTimeFormat {
+	const options: Intl.DateTimeFormatOptions = {
+		calendar: "gregory",
+		numberingSystem: "latn",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hourCycle: "h23",
+	};
+	const normalizedTimezone = timezone?.trim();
+	if (normalizedTimezone) options.timeZone = normalizedTimezone;
+	return new Intl.DateTimeFormat("en-CA", options);
 }
 
-/** Format both lifecycle timestamps in the event's canonical UTC timezone. */
-function formatTimestamp(value: string | undefined): string | undefined {
-	if (!value) return undefined;
+function toDate(value: DisplayTimestampInput): Date | undefined {
+	if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : undefined;
+	if (typeof value === "number") return Number.isFinite(value) ? new Date(value) : undefined;
+	if (typeof value !== "string") return undefined;
 	const timestamp = Date.parse(value);
-	if (!Number.isFinite(timestamp)) return undefined;
+	return Number.isFinite(timestamp) ? new Date(timestamp) : undefined;
+}
 
-	const date = new Date(timestamp);
-	return `${date.getUTCFullYear().toString().padStart(4, "0")}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`;
+function formatWithIntl(formatter: Intl.DateTimeFormat, date: Date): string | undefined {
+	const parts = new Map(formatter.formatToParts(date).map(({ type, value }) => [type, value]));
+	const year = parts.get("year");
+	const month = parts.get("month");
+	const day = parts.get("day");
+	const hour = parts.get("hour");
+	const minute = parts.get("minute");
+	const second = parts.get("second");
+	if (!year || !month || !day || !hour || !minute || !second) return undefined;
+	return `${year.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")} ${hour.padStart(2, "0")}:${minute.padStart(2, "0")}:${second.padStart(2, "0")}`;
+}
+
+function warnInvalidDisplayTimezone(onWarning: (message: string) => void): void {
+	try {
+		onWarning(INVALID_DISPLAY_TIMEZONE_WARNING);
+	} catch {
+		// Configuration diagnostics are best effort and must not affect notification delivery.
+	}
+}
+
+/** Create a safe display formatter; timestamps remain canonical UTC strings in TaskEvent. */
+export function createDisplayTimestampFormatter(
+	timezone?: string,
+	onWarning: (message: string) => void = (message) => process.emitWarning(message),
+): DisplayTimestampFormatter {
+	const normalizedTimezone = timezone?.trim() || undefined;
+	let formatter: Intl.DateTimeFormat;
+	try {
+		formatter = createIntlFormatter(normalizedTimezone);
+	} catch {
+		if (normalizedTimezone) warnInvalidDisplayTimezone(onWarning);
+		formatter = createIntlFormatter();
+	}
+
+	return (value) => {
+		const date = toDate(value);
+		return date ? formatWithIntl(formatter, date) : undefined;
+	};
+}
+
+/** Format one timestamp as YYYY-MM-DD HH:mm:ss in system local or an IANA timezone. */
+export function formatDisplayTimestamp(value: DisplayTimestampInput, timezone?: string): string | undefined {
+	return createDisplayTimestampFormatter(timezone)(value);
 }
 
 function isTaskEndEvent(event: TaskEvent): boolean {
@@ -46,13 +111,13 @@ function warnMissingStartedAt(): void {
 	}
 }
 
-function lifecycleTimes(event: TaskEvent): string[] {
+function lifecycleTimes(event: TaskEvent, timestampFormatter: DisplayTimestampFormatter): string[] {
 	if (!isTaskEndEvent(event)) return [];
 
-	const startedAt = formatTimestamp(event.startedAt);
+	const startedAt = timestampFormatter(event.startedAt);
 	if (!startedAt) warnMissingStartedAt();
 
-	const endedAt = formatTimestamp(event.endedAt);
+	const endedAt = timestampFormatter(event.endedAt);
 	return [...(startedAt ? [`开始时间：${startedAt}`] : []), ...(endedAt ? [`结束时间：${endedAt}`] : [])];
 }
 
@@ -63,7 +128,8 @@ function truncate(value: string): string {
 }
 
 /** Render a bounded text message without making Feishu part of the core model. */
-export function renderFeishuText(event: TaskEvent): string {
+export function renderFeishuText(event: TaskEvent, options: FeishuRenderOptions = {}): string {
+	const timestampFormatter = options.timestampFormatter ?? createDisplayTimestampFormatter(options.displayTimezone);
 	const lines = [
 		`[Pi Pulse] ${event.type}`,
 		`Task: ${display(event.taskId)}`,
@@ -73,7 +139,7 @@ export function renderFeishuText(event: TaskEvent): string {
 		`Repository: ${display(event.repo)}`,
 		`Branch: ${display(event.branch)}`,
 		`耗时：${duration(event)}`,
-		...lifecycleTimes(event),
+		...lifecycleTimes(event, timestampFormatter),
 	];
 	if (event.currentTool) lines.push(`Tool: ${event.currentTool}`);
 	if (event.summary) lines.push(`Summary: ${event.summary}`);
@@ -85,9 +151,9 @@ export function renderFeishuText(event: TaskEvent): string {
 	return truncate(lines.join("\n"));
 }
 
-export function renderFeishuPayload(event: TaskEvent): FeishuTextPayload {
+export function renderFeishuPayload(event: TaskEvent, options: FeishuRenderOptions = {}): FeishuTextPayload {
 	return {
 		msg_type: "text",
-		content: { text: renderFeishuText(event) },
+		content: { text: renderFeishuText(event, options) },
 	};
 }

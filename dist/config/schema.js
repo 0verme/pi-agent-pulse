@@ -50,6 +50,7 @@ export function normalizeConfig(value) {
     const feishu = readRecord(channels, "feishu");
     const watchdog = readRecord(root, "watchdog");
     const privacy = readRecord(root, "privacy");
+    const displayTimezone = readString(root, "displayTimezone", "");
     const hostname = readString(root, "hostname", "");
     return {
         channels: {
@@ -76,6 +77,7 @@ export function normalizeConfig(value) {
             includeWorkdir: readBoolean(privacy, "includeWorkdir", DEFAULT_CONFIG.privacy.includeWorkdir),
             includeSummary: readBoolean(privacy, "includeSummary", DEFAULT_CONFIG.privacy.includeSummary),
         },
+        ...(displayTimezone ? { displayTimezone } : {}),
         ...(hostname ? { hostname } : {}),
     };
 }

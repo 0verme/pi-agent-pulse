@@ -110,6 +110,7 @@ function createChannels(config) {
             channels.push(new FeishuChannel({
                 webhook: config.channels.feishu.webhook,
                 timeoutMs: config.channels.feishu.timeoutMs,
+                displayTimezone: config.displayTimezone,
             }));
         }
         catch {
