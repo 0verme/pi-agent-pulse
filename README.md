@@ -2,7 +2,7 @@
 
 Pi Agent 的任务状态观察、Watchdog 与可插拔 outbound notification layer。
 
-> **v0.1 Release Candidate**：已具备可验证的 Pi Git package 安装链；当前版本只观察任务，不控制 Pi。
+> **v0.1.0**：首个公开可安装版本；当前版本只观察任务，不控制 Pi。
 
 ## What is it?
 
@@ -16,19 +16,19 @@ Pi Pulse 作为 Pi Agent Extension 运行，在任务启动、长时间运行、
 
 ### 1. 安装
 
-当前 v0.1 Release Candidate branch 的可立即验证安装命令：
+#### 推荐：npm 安装
 
 ```bash
-pi install git:github.com/0verme/pi-agent-pulse@feat/v0.1-release-readiness
+pi install npm:pi-agent-pulse
 ```
 
-该命令会把 package 写入 Pi 的用户 settings，并在 Pi 启动时自动加载 `package.json` 中的 extension manifest。PR 合并到 `main` 后，正式安装命令为：
+#### GitHub / 源码安装
 
 ```bash
 pi install git:github.com/0verme/pi-agent-pulse
 ```
 
-Pi 的 Git package installer 会 clone 仓库并执行 production `npm install --omit=dev`，不会替 package 运行 `npm run build`；因此 release `dist/` artifact 已作为 package 分发的一部分提交，陌生环境不需要先安装源码依赖或手动构建。
+两种安装方式都会把 package 写入 Pi 的用户 settings，并在 Pi 启动时自动加载 `package.json` 中的 extension manifest。npm 安装使用 npm registry 中的 package；GitHub 安装会 clone 仓库并执行 production `npm install --omit=dev`。Git package installer 不会替 package 运行 `npm run build`，因此 release `dist/` artifact 已作为 GitHub package 分发的一部分提交，陌生环境不需要先安装源码依赖或手动构建。
 
 ### 2. 创建 Feishu 群机器人
 
@@ -95,10 +95,22 @@ pi
 
 这里的 `TASK_COMPLETED` 表示 Pi 已发出 `agent_settled`，即没有待处理的 retry、compaction 或 follow-up；它不承诺业务操作成功。channel 发送失败只会在 Pi 本地产生 bounded warning，不会阻断 Pi task。
 
-## Supported Channels
+## Observed Events and Channels
+
+Pi Pulse 为每个 session 独立维护任务状态，并产生以下 bounded outbound notifications：
+
+- `TASK_STARTED`：任务开始时发送，并记录 `startedAt`。
+- `TASK_COMPLETED`：Pi 生命周期 settled 时发送，并带 `startedAt`、`endedAt` 和耗时；settled 不等同于业务成功。
+- Long-task watchdog：任务达到 notice、warning 或 critical threshold 时发送 `TASK_WARNING`。
+- Long-tool detection：单个 tool execution 超过 long-tool threshold 时发送 `TASK_WARNING`。
+- Possibly stalled：超过 stalled threshold 未观察到 Pi activity 时发送 `TASK_STALLED`。
+
+支持的 outbound channels：
 
 - **Feishu**：发送 bounded text notification；只接受 `https://open.feishu.cn/open-apis/` 或 `https://open.larksuite.com/open-apis/` webhook。
 - **Generic Webhook**：发送 channel-neutral `TaskEvent` JSON；只实现 outbound HTTP POST。
+
+每个 channel 的失败都会被隔离并产生 bounded warning，不会影响其他 channel 或 Pi runtime。
 
 Generic Webhook 示例：
 
@@ -153,10 +165,10 @@ flowchart TD
 
 ## Package Strategy
 
-- Pi Git package 是当前 Release Candidate 的正式推荐安装路径。
-- `dist/` 被纳入 Git package，以适配 Pi Git installer 不自动 build 的真实行为。
+- npm package 是 v0.1.0 的推荐安装路径；GitHub Git package 继续作为源码安装方式。
+- npm package 与 GitHub package 共用已提交的 `dist/` artifact；Git package installer 不自动 build。
 - `npm pack` tarball 只包含 `dist/`、`package.json`、`README.md` 和 `LICENSE` 所需的发布内容，并由 `npm run test:package` 做临时安装与 extension import smoke。
-- `@earendil-works/pi-coding-agent` 是 host-provided peer dependency，开发时固定使用 `0.84.4`；已验证兼容范围为 `>=0.84.4 <0.86.0`。本 PR 不自动 publish npm registry。
+- `@earendil-works/pi-coding-agent` 是 host-provided peer dependency，开发时固定使用 `0.84.4`；已验证兼容范围为 `>=0.84.4 <0.86.0`。
 
 ## Development and Release Checks
 
