@@ -2,7 +2,7 @@ name: CI
 
 on:
     push:
-        branches: [main, "feat/**"]
+        branches: [main, "feat/**", "fix/**"]
     pull_request:
 
 permissions:
@@ -33,7 +33,7 @@ jobs:
               run: npm run format:check
             - name: Unit tests
               run: npm test
-            - name: Build
-              run: npm run build
+            - name: Build and deterministic dist check
+              run: npm run build:check
             - name: Package smoke
               run: npm run test:package

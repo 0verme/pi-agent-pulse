@@ -34,6 +34,7 @@ export interface PulseConfig {
 	};
 	watchdog: WatchdogConfig;
 	privacy: PrivacyConfig;
+	displayTimezone?: string;
 	hostname?: string;
 }
 
@@ -94,6 +95,7 @@ export function normalizeConfig(value: unknown): PulseConfig {
 	const watchdog = readRecord(root, "watchdog");
 	const privacy = readRecord(root, "privacy");
 
+	const displayTimezone = readString(root, "displayTimezone", "");
 	const hostname = readString(root, "hostname", "");
 	return {
 		channels: {
@@ -132,6 +134,7 @@ export function normalizeConfig(value: unknown): PulseConfig {
 			includeWorkdir: readBoolean(privacy, "includeWorkdir", DEFAULT_CONFIG.privacy.includeWorkdir),
 			includeSummary: readBoolean(privacy, "includeSummary", DEFAULT_CONFIG.privacy.includeSummary),
 		},
+		...(displayTimezone ? { displayTimezone } : {}),
 		...(hostname ? { hostname } : {}),
 	};
 }

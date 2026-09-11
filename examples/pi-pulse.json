@@ -1,5 +1,6 @@
 {
 	"hostname": "my-machine",
+	"displayTimezone": "Asia/Shanghai",
 	"channels": {
 		"webhook": {
 			"enabled": true,

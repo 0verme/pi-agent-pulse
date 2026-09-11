@@ -15,6 +15,7 @@ export declare class FetchFeishuTransport implements FeishuTransport {
 export interface FeishuChannelOptions {
     webhook: string;
     timeoutMs?: number;
+    displayTimezone?: string;
     transport?: FeishuTransport;
 }
 /** Minimal outbound Feishu adapter; no inbound bot or query behavior is included. */
@@ -22,6 +23,7 @@ export declare class FeishuChannel implements OutboundChannel {
     readonly id = "feishu";
     private readonly webhook;
     private readonly timeoutMs;
+    private readonly timestampFormatter;
     private readonly transport;
     constructor(options: FeishuChannelOptions);
     send(event: TaskEvent): Promise<void>;

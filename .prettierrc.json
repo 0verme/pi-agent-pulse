@@ -4,5 +4,6 @@
 	"printWidth": 120,
 	"singleQuote": false,
 	"semi": true,
+	"endOfLine": "auto",
 	"trailingComma": "all"
 }

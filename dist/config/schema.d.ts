@@ -27,6 +27,7 @@ export interface PulseConfig {
     };
     watchdog: WatchdogConfig;
     privacy: PrivacyConfig;
+    displayTimezone?: string;
     hostname?: string;
 }
 export declare const DEFAULT_CONFIG: PulseConfig;

@@ -78,7 +78,7 @@ Core 输出 `TaskEvent`，其中只有 channel-neutral 的字段：event type、
 - 任何 webhook host
 - 飞书 token、签名或 inbound API
 
-`src/channels/feishu/renderer.ts` 负责把领域事件转换为 bounded text，`transport.ts` 负责 Feishu-specific outbound HTTP contract。以后改变 Feishu 格式，不需要改 Core、TaskManager 或 Watchdog。
+`src/channels/feishu/renderer.ts` 负责把领域事件转换为 bounded text，`transport.ts` 负责 Feishu-specific outbound HTTP contract。Feishu 的 lifecycle timestamp 由 renderer 使用 system local timezone 展示，也可以通过根配置的 `displayTimezone` 指定 IANA timezone；这只改变 human-readable presentation，不改变 Core 产生的 canonical UTC timestamp。以后改变 Feishu 格式，不需要改 Core、TaskManager 或 Watchdog。
 
 Generic Webhook 同样是一等公民：它直接发送 `TaskEvent` JSON，而不是把所有渠道都先转成飞书消息。
 
@@ -191,4 +191,4 @@ Prototype 中已实际使用并在本项目 adapter 中按边界重用的行为�
 
 Pi 的 `DefaultPackageManager` 对 Git package 执行 clone 后的 production `npm install --omit=dev`，不会自动运行项目 build。为保证 `pi install git:...` 在陌生环境可用，release branch 会提交 `dist/`；package manifest 仍只加载 `dist/extension/pi.js`，不依赖开发机上的 `node_modules`。
 
-`@earendil-works/pi-coding-agent` 是 host-provided peer dependency，开发基线固定为 `0.84.4`，已对照 `0.85.1` 的相关 lifecycle types 验证，保守兼容范围为 `>=0.84.4 <0.86.0`。`npm pack` 的发布内容由 package smoke 检查，npm registry publish 不属于本轮操作。
+`@earendil-works/pi-coding-agent` 是 host-provided peer dependency，开发基线固定为 `0.84.4`，已对照 `0.85.1` 的相关 lifecycle types 验证，保守兼容范围为 `>=0.84.4 <0.86.0`。`npm pack` 的发布内容由 package smoke 检查；发布 v0.1.1 时，npm registry 使用同一份 deterministic `dist/` artifact。
