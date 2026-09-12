@@ -4,7 +4,7 @@ import { systemClock, Watchdog } from "./watchdog.js";
 const DEFAULT_PRIVACY = {
     includeHost: true,
     includeWorkdir: false,
-    includeSummary: true,
+    includeSummary: false,
 };
 function timestampOrNow(value, now) {
     return typeof value === "number" && Number.isFinite(value) ? value : now;
@@ -208,7 +208,7 @@ export class TaskManager {
         const event = this.emitEvent(this.toEvent(task, state === "COMPLETED" ? "TASK_COMPLETED" : state === "FAILED" ? "TASK_FAILED" : "TASK_ABORTED", endedAt, {
             endedAt,
             durationMs: Math.max(0, endedAt - task.startedAt),
-            summary,
+            summary: this.privacy.includeSummary ? summary : undefined,
             metadata,
         }));
         this.tasks.delete(sessionId);

@@ -59,7 +59,7 @@ export const DEFAULT_CONFIG: PulseConfig = {
 	privacy: {
 		includeHost: true,
 		includeWorkdir: false,
-		includeSummary: true,
+		includeSummary: false,
 	},
 };
 

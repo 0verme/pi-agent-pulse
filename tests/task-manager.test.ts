@@ -25,6 +25,64 @@ function createManager(
 }
 
 describe("TaskManager and Watchdog", () => {
+	it("omits user summaries by default while retaining system warning context", () => {
+		const clock = new FakeClock();
+		const events: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			thresholds: {
+				longTaskNoticeMs: 10_000,
+				longTaskWarningMs: 20_000,
+				longTaskCriticalMs: 30_000,
+				longToolMs: 10_000,
+				stalledMs: 50,
+			},
+			taskIdFactory: () => "task-privacy-default",
+			eventIdFactory: () => `event-${events.length + 1}`,
+			onEvent: (event) => events.push(event),
+		});
+
+		const started = manager.startTask({
+			sessionId: "session-privacy-default",
+			taskId: "task-privacy-default",
+			summary: "user chat input that must stay private",
+		});
+		clock.advanceBy(50);
+		const completed = manager.completeTask("session-privacy-default", "model output that must stay private", 50);
+
+		expect(started?.summary).toBeUndefined();
+		expect(completed?.summary).toBeUndefined();
+		expect(events.find((event) => event.type === "TASK_STALLED")?.summary).toBe(
+			"No Pi activity was observed for the stalled threshold",
+		);
+		for (const event of events) {
+			expect(event.summary ?? "").not.toContain("user chat input");
+			expect(event.summary ?? "").not.toContain("model output");
+		}
+	});
+
+	it("preserves summaries when explicitly enabled", () => {
+		const clock = new FakeClock();
+		const events: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			privacy: { includeSummary: true },
+			taskIdFactory: () => "task-privacy-opt-in",
+			eventIdFactory: () => `event-${events.length + 1}`,
+			onEvent: (event) => events.push(event),
+		});
+
+		const started = manager.startTask({
+			sessionId: "session-privacy-opt-in",
+			taskId: "task-privacy-opt-in",
+			summary: "user chat input",
+		});
+		const completed = manager.completeTask("session-privacy-opt-in", "model output", 1);
+
+		expect(started?.summary).toBe("user chat input");
+		expect(completed?.summary).toBe("model output");
+	});
+
 	it("emits each long-task threshold once and cleans timers on completion", () => {
 		const clock = new FakeClock();
 		const events: Array<{ type: string; taskId: string; state: string; metadata?: unknown }> = [];
