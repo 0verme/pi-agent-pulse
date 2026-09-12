@@ -1,62 +1,62 @@
 # Pi Pulse
 
-Pi Agent 的任务状态观察、Watchdog 与可插拔 outbound notification layer。
+Pi Agent 的任务状态与 Watchdog 通知插件，让长任务运行时不必一直守着终端。
 
-> **v0.2.0（准备发布）**：收紧隐私默认值并修复 Generic Webhook 的 IPv4-mapped IPv6 地址校验；当前版本只观察任务，不控制 Pi。
+任务开始、长时间运行、疑似停滞和生命周期结束时，可主动通知到 Feishu 或 Generic Webhook。
 
-## What is it?
+[![npm version](https://img.shields.io/npm/v/pi-agent-pulse)](https://www.npmjs.com/package/pi-agent-pulse)
+[![CI](https://github.com/0verme/pi-agent-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/0verme/pi-agent-pulse/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/0verme/pi-agent-pulse)](LICENSE)
 
-Pi Pulse 作为 Pi Agent Extension 运行，在任务启动、长时间运行、疑似停滞和生命周期结束时，向 Feishu 或 Generic Webhook 发送 bounded notification。
+## 为什么需要 Pi Pulse
 
-## Why do I need it?
+Pi Agent 的长任务可能运行较久；Pi Pulse 会在关键 lifecycle 和 Watchdog 状态发生时主动通知，让你不必一直守着 Pi 终端。
 
-长任务运行时，你不必一直守着 Pi 终端；关键状态会主动通知到已配置的 channel。Pi Pulse 不需要 Dashboard、数据库、Web Server 或常驻额外服务，也不会 stop、kill 或 abort Pi 任务。
+它不需要额外的 Dashboard、数据库、Web Server 或常驻服务。当前定位是 **Pi Agent Extension**，只 OBSERVE，不 stop、kill 或 abort Pi task。
 
-## 5-Minute Quick Start
+## Quick Start
 
 ### 1. 安装
 
-#### 推荐：npm 安装
+在已安装 Pi Agent 的环境中运行：
 
 ```bash
 pi install npm:pi-agent-pulse
 ```
 
-#### GitHub / 源码安装
+这是推荐的 npm 安装路径。
+
+<details>
+<summary>可选：从 GitHub 源码安装</summary>
 
 ```bash
 pi install git:github.com/0verme/pi-agent-pulse
 ```
 
-两种安装方式都会把 package 写入 Pi 的用户 settings，并在 Pi 启动时自动加载 `package.json` 中的 extension manifest。npm 安装使用 npm registry 中的 package；GitHub 安装会 clone 仓库并执行 production `npm install --omit=dev`。Git package installer 不会替 package 运行 `npm run build`，因此 release `dist/` artifact 已作为 GitHub package 分发的一部分提交，陌生环境不需要先安装源码依赖或手动构建。
+GitHub package installer 会 clone 仓库并执行 production `npm install --omit=dev`；它不会替 package 运行 `npm run build`，因此仓库中已提交 release `dist/` artifact。首次安装通常不需要手动构建。
 
-### 2. 创建 Feishu 群机器人
+</details>
 
-在要接收通知的 Feishu 群中：
+### 2. 最小配置
 
-1. 打开群设置，添加 **Bot / 群机器人**。
-2. 选择自定义机器人并完成创建。
-3. 复制机器人生成的 webhook URL。不要把真实 URL 提交到 Git。
+先在 Feishu 群中创建自定义机器人并复制 webhook URL，然后创建配置文件：
 
-### 3. 创建配置文件
-
-Linux/macOS 配置路径：
-
-```text
-~/.pi/agent/pi-pulse.json
-```
-
-Windows 配置路径：
+Windows：
 
 ```text
 %USERPROFILE%\.pi\agent\pi-pulse.json
 ```
 
-写入最小 Feishu 配置即可，其余 locale、watchdog、privacy、timeout 和 Generic Webhook 都会使用默认值：
+Linux/macOS：
+
+```text
+~/.pi/agent/pi-pulse.json
+```
+
+写入最小 Feishu 配置：
 
 ```json
 {
-	"locale": "auto",
 	"channels": {
 		"feishu": {
 			"enabled": true,
@@ -66,74 +66,112 @@ Windows 配置路径：
 }
 ```
 
-如果目录不存在，请先创建 `~/.pi/agent`（Windows 对应 `%USERPROFILE%\.pi\agent`）。配置文件只应保存在本机；示例中的 `YOUR_FEISHU_WEBHOOK_URL` 必须替换为你自己的 URL。
+不要把真实 webhook URL 提交到 Git。
 
-Feishu 的开始时间和结束时间默认使用 Pi 当前运行环境的 system local timezone。需要固定显示时区时，可在配置根部增加 IANA timezone：
+### 3. 重启 Pi 并验证
 
-```json
-{
-	"displayTimezone": "Asia/Shanghai"
-}
-```
-
-也支持 `Asia/Tokyo`、`America/New_York` 和 `UTC` 等 IANA timezone；非法值会回退到 system local，并产生一次 bounded warning。该设置只影响 Feishu human-readable renderer，不改变 `TaskEvent` 的 canonical UTC timestamp，也不改变 Generic Webhook 的 ISO UTC payload。
-
-#### 通知语言
-
-根配置的 `locale` 支持 `auto`、`zh-CN` 和 `en-US`，缺省值为 `auto`：
-
-- `auto` 优先根据当前 Pi Task 的用户 `input.text` / `before_agent_start.prompt` 判断中文或英文；无法判断时使用 Node/Intl 的 system locale，最后回退到 `en-US`。
-- `zh-CN` 或 `en-US` 会固定所有展示型通知的语言。
-- locale 在 Task 开始附近解析一次，同一个 Task 的 started、Watchdog 与 completed/failed/aborted 通知不会切换语言。
-
-该 i18n 只影响人类可读通知。Core `TaskEvent` 和 Generic Webhook 始终保留 canonical machine values；可选的 `summary` 不会被翻译。`auto` 语言识别只在 adapter 内存中读取输入，并在 `privacy.includeSummary=false` 时不把输入原文写入 `TaskEvent`。
-
-### 4. 启动 Pi
-
-在任意 Pi project 中启动：
-
-```bash
-cd /path/to/your/project
-pi
-```
-
-安装完成后重新启动 Pi；Extension 会通过 package manifest 自动加载，不需要修改源码，也不需要启动额外服务。
-
-### 5. 验证通知
-
-在 Pi 中执行一个简单任务，例如：
+安装或修改配置后，重新启动 Pi / Pi Web，使 extension 重新加载。在 Pi 中运行：
 
 ```text
 请回复一句“Pi Pulse smoke test passed”，然后结束任务。
 ```
 
-在 Feishu 群中应看到类似：
+Feishu 中应看到类似的开始和结束通知：
 
 ```text
 [Pi Pulse] 任务开始
 [Pi Pulse] 任务完成
 ```
 
-这里的 `任务完成` 对应 Core 中的 canonical `TASK_COMPLETED`，表示 Pi 已发出 `agent_settled`，即没有待处理的 retry、compaction 或 follow-up；它不承诺业务操作成功。channel 发送失败只会在 Pi 本地产生 bounded warning，不会阻断 Pi task。
+这里的“任务完成”对应 `TASK_COMPLETED` 且 `metadata.outcome=settled`，表示 Pi lifecycle 已 settled，不表示业务操作一定成功；详见 [Lifecycle Semantics](#lifecycle-semantics)。
 
-## Observed Events and Channels
+## Features
 
-Pi Pulse 为每个 session 独立维护任务状态，并产生以下 bounded outbound notifications：
+- Task lifecycle notifications
+- Long-task notice / warning / critical
+- Long-tool detection
+- Possibly-stalled detection
+- Feishu notifications
+- Generic Webhook
+- `zh-CN` / `en-US` / `auto` locale
+- system local timezone + configurable `displayTimezone`
+- Privacy controls
+- **OBSERVE ONLY**：不控制 Pi task
 
-- `TASK_STARTED`：任务开始时发送，并记录 `startedAt`。
-- `TASK_COMPLETED`：Pi 生命周期 settled 时发送，并带 `startedAt`、`endedAt` 和耗时；settled 不等同于业务成功。
-- Long-task watchdog：任务达到 notice、warning 或 critical threshold 时发送 `TASK_WARNING`。
-- Long-tool detection：单个 tool execution 超过 long-tool threshold 时发送 `TASK_WARNING`。
-- Possibly stalled：超过 stalled threshold 未观察到 Pi activity 时发送 `TASK_STALLED`。
+## Requirements / Compatibility
 
-支持的 outbound channels：
+Pi Pulse 是 **Pi Agent Extension**，需要运行在兼容的 Pi Agent 环境中；当前没有脱离 Pi 独立使用的产品目标。
 
-- **Feishu**：发送 bounded text notification；只接受 `https://open.feishu.cn/open-apis/` 或 `https://open.larksuite.com/open-apis/` webhook。
-- **Generic Webhook**：发送 channel-neutral `TaskEvent` JSON；只实现 outbound HTTP POST。
+- **支持范围（package metadata）**：`@earendil-works/pi-coding-agent >=0.84.4 <0.86.0`
+- **Node.js**：`>=22.19.0`
+- **自动化测试**：仓库 CI 在 Ubuntu 上使用 Node `22.19.0`，并通过 development dependency 使用 Pi `0.84.4`；CI 会运行 typecheck、lint、format check、unit tests、deterministic build check 和 package smoke。
+- **实际 runtime 核对**：已在本机核对 Pi `0.84.4` 的实际 runtime types，并对照可获得的 `0.85.1` 相关 lifecycle types；这不等同于对所有 Pi runtime 场景都完成 fully verified 的真实运行验证。
 
-每个 channel 的失败都会被隔离并产生 bounded warning，不会影响其他 channel 或 Pi runtime。
+## Configuration
 
-Generic Webhook 示例：
+配置文件路径见 [Quick Start](#quick-start)。Quick Start 中的 JSON 已经是可工作的最小 Feishu 配置；未填写的字段使用以下默认值。
+
+| Config                             |                    Default | Meaning                                                                       |
+| ---------------------------------- | -------------------------: | ----------------------------------------------------------------------------- |
+| `locale`                           |                     `auto` | 通知语言；自动检测中文/英文，无法判断时使用 system locale，最后回退到 `en-US` |
+| `displayTimezone`                  |     未设置（system local） | Feishu 人类可读时间的 IANA timezone；不改变 canonical UTC timestamp           |
+| `hostname`                         | 未设置（runtime hostname） | `includeHost=true` 时使用的主机名，也可手动覆盖                               |
+| `channels.feishu.enabled`          |                    `false` | 是否启用 Feishu                                                               |
+| `channels.feishu.webhook`          |                       `""` | Feishu webhook URL                                                            |
+| `channels.feishu.timeoutMs`        |                   `10,000` | Feishu 单次请求 timeout，范围会限制在 `100`–`120,000` ms                      |
+| `channels.webhook.enabled`         |                    `false` | 是否启用 Generic Webhook                                                      |
+| `channels.webhook.url`             |                       `""` | Generic Webhook URL                                                           |
+| `channels.webhook.timeoutMs`       |                   `10,000` | Generic Webhook 单次请求 timeout，范围会限制在 `100`–`120,000` ms             |
+| `watchdog.longTaskNoticeMinutes`   |                       `45` | 长任务 notice threshold                                                       |
+| `watchdog.longTaskWarningMinutes`  |                       `75` | 长任务 warning threshold                                                      |
+| `watchdog.longTaskCriticalMinutes` |                      `120` | 长任务 critical threshold                                                     |
+| `watchdog.longToolMinutes`         |                       `20` | 单个 tool execution 的 long-tool threshold                                    |
+| `watchdog.stalledMinutes`          |                       `15` | 无 Pi activity 时的 possibly-stalled threshold                                |
+| `privacy.includeHost`              |                     `true` | 是否在事件中包含 host                                                         |
+| `privacy.includeWorkdir`           |                    `false` | 是否在事件中包含 working directory                                            |
+| `privacy.includeSummary`           |                    `false` | 是否包含用户输入或模型输出衍生的 summary                                      |
+
+配置文件缺失、JSON malformed 或字段类型不符合预期时，会安全回退到默认配置；两个 channel 彼此独立。
+
+### Locale、timezone 与 Watchdog
+
+`locale` 支持 `auto`、`zh-CN` 和 `en-US`。`auto` 会在 adapter 内存中读取当前 Task 的用户输入或 prompt 来判断语言；无法判断时使用 Node/Intl 的 system locale，最后回退到 `en-US`。同一个 Task 的 started、Watchdog 和 completed/failed/aborted 通知会保持同一语言；Core `TaskEvent` 和 Generic Webhook 的 machine values 不会被翻译。
+
+`displayTimezone` 使用 IANA timezone，例如 `Asia/Shanghai`、`Asia/Tokyo`、`America/New_York` 或 `UTC`。它只影响 Feishu 的 human-readable renderer；Generic Webhook 仍发送 ISO UTC payload。非法值会回退到 system local，并产生一次 bounded warning。
+
+Watchdog threshold 的单位是分钟。长任务达到 notice、warning 或 critical threshold 时发送 `TASK_WARNING`；单个 tool 超过 `longToolMinutes` 时发送 long-tool warning；超过 `stalledMinutes` 未观察到 Pi activity 时发送 `TASK_STALLED`。
+
+`hostname` 只用于覆盖默认的 runtime hostname。`timeoutMs` 适用于两个 outbound channel；请求有 timeout，不做无限 retry。
+
+Feishu webhook 只接受以下官方 API 前缀：`https://open.feishu.cn/open-apis/` 或 `https://open.larksuite.com/open-apis/`。
+
+## Privacy & Security
+
+- Pi Pulse 只 OBSERVE，不调用 Pi 的 stop、kill、abort 或其他任务控制 API。
+- `privacy.includeSummary` 默认是 `false`。默认通知主要包含任务状态、时间、耗时（完成事件）、允许的仓库/分支等上下文和 Watchdog 信息；固定的 Watchdog 说明文字可能仍会出现，但默认不会携带用户输入或模型输出摘要。
+- 将 `privacy.includeSummary` 显式设置为 `true` 后，通知可能包含经过截断和清理的用户输入或模型输出原文片段。截断/清理不等于去除敏感性；只有在你信任目标 IM 或 Webhook 接收端时才应启用。
+- `TaskEvent` schema 不包含 tool arguments、源码、完整 tool result 或环境变量；summary 是否出现仍由 `privacy.includeSummary` 控制。
+- `privacy.includeWorkdir` 默认是 `false`；`auto` 语言识别只在 adapter 内存中读取输入，不额外写入事件或日志。
+- 不在日志中输出 webhook URL、token、cookie、secret 或原始 payload；真实 webhook secret 也不应提交到 Git。
+- Generic Webhook 会校验 HTTP(S)、credentials，以及显式提供的常见 localhost、private IPv4、private IPv6 和 IPv4-mapped IPv6 literal；transport 使用 timeout、`redirect: "error"` 和单次请求。这个 URL 校验只拒绝显式提供的本地/私网地址，不保证阻止域名解析后指向私网地址的情况，因此不是完整 SSRF 防护。
+- channel failure 会被独立捕获并产生 bounded warning，不影响其他 channel 或 Pi runtime。
+
+## Lifecycle Semantics
+
+Pi adapter 只根据明确的 lifecycle evidence 发出事件：
+
+| Pi evidence                   | TaskEvent                                        | 含义                                                                           |
+| ----------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `agent_start`                 | `TASK_STARTED`                                   | Pi task 开始观察                                                               |
+| Watchdog threshold            | `TASK_WARNING`                                   | 长任务或 long-tool 达到对应 threshold                                          |
+| Watchdog inactivity heuristic | `TASK_STALLED`                                   | 一段时间没有观察到 Pi activity                                                 |
+| `agent_settled`               | `TASK_COMPLETED` + `metadata.outcome: "settled"` | Pi lifecycle 已没有待处理的 retry、compaction 或 follow-up；不表示业务操作成功 |
+
+`TASK_COMPLETED` 中的 `metadata.outcome=settled` 表示 lifecycle settled，而不是业务成功、失败或 abort reason。`TASK_FAILED` / `TASK_ABORTED` 是保留的 domain outcomes；当前 Pi adapter 不会根据 assistant 文本、summary、prompt、tool 名称或 `session_shutdown` 猜测并发出它们。
+
+## Generic Webhook
+
+Generic Webhook 是 channel-neutral 的 outbound HTTP POST，发送结构化 `TaskEvent` JSON。配置示例：
 
 ```json
 {
@@ -146,28 +184,7 @@ Generic Webhook 示例：
 }
 ```
 
-两个 channel 可以同时启用，也可以全部关闭。配置文件缺失、JSON malformed 或字段缺失时，会安全回退到默认配置。
-
-## Lifecycle Outcome Contract
-
-当前已核对 Pi `0.84.4`（开发基线）和可获得的 `0.85.1` runtime types：`agent_settled` 只有“生命周期已 settled”信号，没有 success、failure 或 abort reason。因此 adapter 只使用明确的 Pi lifecycle evidence：
-
-- `agent_start` → `TASK_STARTED`
-- Watchdog threshold → `TASK_WARNING`
-- Watchdog inactivity heuristic → `TASK_STALLED`
-- `agent_settled` → `TASK_COMPLETED`，并带 `metadata.outcome: "settled"`
-- `TASK_FAILED` / `TASK_ABORTED` 是保留的 domain outcomes；当前 Pi adapter 不会根据 assistant 文本、summary、prompt、tool 名称或 `session_shutdown` 猜测并发出它们。
-
-## Security / Privacy
-
-- Pi Pulse 只 OBSERVE，不调用 Pi 的 stop、kill、abort 或其他任务控制 API。
-- `privacy.includeSummary` 默认是 `false`。默认通知主要包含任务状态、时间、耗时（完成事件）、允许的仓库/分支等上下文和 Watchdog 信息；具体字段以实际 `TaskEvent` schema 为准。固定的 Watchdog 说明文字可能仍会出现，但默认不会携带用户输入或模型输出摘要。
-- 将 `privacy.includeSummary` 显式设置为 `true` 可恢复 summary 能力。开启后，通知可能包含经过截断和清理的用户输入或模型输出原文片段。截断/清理不等于去除敏感性；只有在你信任目标 IM 或 Webhook 接收端时才应启用。
-- `TaskEvent` schema 不包含 tool arguments、源码、完整 tool result 或环境变量；summary 是否出现仍由 `privacy.includeSummary` 控制。
-- `workdir` 默认关闭；`auto` 语言识别只在 adapter 内存中读取输入，不额外写入事件或日志。
-- 不在日志中输出 webhook URL、token、cookie、secret 或原始 payload。
-- Generic Webhook 会校验 HTTP(S)、credentials，以及显式提供的常见 localhost、private IPv4、private IPv6 和 IPv4-mapped IPv6 literal；transport 使用 timeout、`redirect: "error"` 和单次请求。这个 URL 校验只拒绝显式提供的本地/私网地址，不保证阻止域名解析后指向私网地址的情况，因此不应描述为完整 SSRF 防护。
-- channel failure 会被独立捕获，不影响其他 channel 或 Pi runtime。
+Feishu 和 Generic Webhook 可以同时启用，也可以全部关闭。每个 channel 的发送失败都会被隔离，不改变 task state，也不会影响 Pi runtime。Generic Webhook 只提供 outbound transport，不提供 inbound bot、remote query 或 control API。
 
 ## Architecture
 
@@ -186,14 +203,9 @@ flowchart TD
 
 详细的依赖方向、state machine、watchdog、failure isolation 和隐私边界见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
-## Package Strategy
+## Development / Contributing
 
-- npm package 计划以 v0.2.0 发布，并继续作为推荐安装路径；GitHub Git package 继续作为源码安装方式。
-- npm package 与 GitHub package 共用已提交的 `dist/` artifact；Git package installer 不自动 build。
-- `npm pack` tarball 只包含 `dist/`、`package.json`、`README.md` 和 `LICENSE` 所需的发布内容，并由 `npm run test:package` 做临时安装与 extension import smoke。
-- `@earendil-works/pi-coding-agent` 是 host-provided peer dependency，开发时固定使用 `0.84.4`；已验证兼容范围为 `>=0.84.4 <0.86.0`。
-
-## Development and Release Checks
+本仓库的开发和验证命令：
 
 ```bash
 npm ci
@@ -205,16 +217,6 @@ npm run build:check
 npm run test:package
 ```
 
-`npm run test:package` 不会向 Feishu 或任何真实 webhook 发送请求；它会运行 `npm pack`、检查 tarball 内容、在临时目录安装 package，并 import `dist/extension/pi.js` 验证 extension exports。
+npm package 和 GitHub package 共用已提交的 `dist/` artifact；Git package installer 不自动 build。`npm pack` 的发布内容由 package smoke 检查；`npm run test:package` 不会向 Feishu 或任何真实 webhook 发送请求，而是在临时目录检查 tarball、安装 package 并 import extension。
 
-## Non-goals for v0.2.0
-
-本轮明确不实现：
-
-- Dashboard、Web UI、Control Plane
-- SQLite、PostgreSQL、NAS aggregation 或 multi-host registry
-- remote query、remote control、inbound Feishu bot
-- Telegram、Slack、Discord、企业微信
-- retry queue、persistent queue、dead letter queue
-- AI summary、plugin marketplace
-- Agent 调度、stop、kill、abort
+当前明确不包含 Dashboard、Web UI、Control Plane、数据库、remote control、inbound bot 或更多 IM adapter。Pi Pulse 的产品边界仍然是运行在 Pi Agent 内的任务观察、Watchdog 和 outbound notification。
