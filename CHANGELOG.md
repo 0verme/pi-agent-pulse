@@ -1,8 +1,6 @@
 # Changelog
 
-## [0.2.0] - Unreleased
-
-> Release notes draft. 本版本已在 `main` 准备完成；`npm publish`、Git tag 和 GitHub Release 均不会在本轮执行。
+## [0.2.0] - 2026-09-12
 
 ### Breaking / Behavior Change
 
@@ -17,7 +15,7 @@
 
 ### Included changes since npm 0.1.0
 
-根据本次核对结果，npm registry 的 `latest` 为 `0.1.0`；仓库已有 Git tag `v0.1.1`，但它尚未成为 registry 的 `latest`。因此本版本纳入自 npm `0.1.0` 以来已经进入 `main` 的用户可感知变更：
+本版本纳入自 npm `0.1.0` 以来已经进入 `main` 的用户可感知变更：
 
 - Feishu lifecycle timestamp 默认使用 Pi 运行环境的 system local timezone，并支持 `displayTimezone`。
 - 增加 `auto`、`zh-CN`、`en-US` 通知语言，以及同一 Task 生命周期内稳定的 locale。
