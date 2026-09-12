@@ -142,18 +142,20 @@ Generic Webhook 和 Feishu transport 都是单次请求，使用 timeout、`redi
 
 ## 9. Security / privacy boundary
 
-领域事件是出站边界。默认策略：
+领域事件是出站边界。默认策略和边界如下：
 
-- prompt 只允许作为短、经过过滤的 summary 候选，不发送完整 prompt；`auto` locale detection 只在 adapter 内存中读取用户输入，不把原文写入事件或日志
+- `privacy.includeSummary` 默认是 `false`，因此默认事件不包含用户输入或模型输出衍生的 summary；固定的 Watchdog 说明文字可以保留
+- 显式开启 `privacy.includeSummary` 后，summary 可能包含经过截断和清理的用户输入或模型输出原文片段。截断/清理不等于去除敏感性，接收端必须被视为可信边界
+- `auto` locale detection 只在 adapter 内存中读取用户输入；默认关闭 summary 时，输入原文不进入 `TaskEvent`
 - tool args 不进入事件；只允许 bounded tool name
-- 不发送源码、完整 tool result 或环境变量
+- `TaskEvent` schema 不包含源码、完整 tool result 或环境变量
 - `workdir` 默认不包含；显式开启后仍裁剪长度
 - metadata 只保留 string/number/boolean/null，并过滤敏感 key
 - transport 从不打印 destination URL 或 JSON body
-- Generic Webhook 在发送前校验 scheme、host、credentials 和常见本地/私网字面地址
+- Generic Webhook 在发送前校验 scheme、credentials，以及显式提供的常见 localhost、private IPv4、private IPv6 和 IPv4-mapped IPv6 literal
 - Feishu 只允许 `open.feishu.cn` / `open.larksuite.com` 的 HTTPS `/open-apis/` 路径
 
-这不是完整的企业数据防泄露系统；使用者仍需把 endpoint 当作敏感配置管理，不要把配置文件提交到仓库。
+Generic Webhook 的 URL 校验只拒绝显式提供的本地/私网地址，不保证阻止域名解析后指向私网地址的情况，因此不是完整 SSRF 防护。它也不替代 endpoint 权限控制、凭据管理或接收端的数据治理；使用者仍需把 endpoint 当作敏感配置管理，不要把配置文件提交到仓库。
 
 ## 10. 已验证与未验证的 Pi API 边界
 
@@ -192,4 +194,4 @@ Prototype 中已实际使用并在本项目 adapter 中按边界重用的行为�
 
 Pi 的 `DefaultPackageManager` 对 Git package 执行 clone 后的 production `npm install --omit=dev`，不会自动运行项目 build。为保证 `pi install git:...` 在陌生环境可用，release branch 会提交 `dist/`；package manifest 仍只加载 `dist/extension/pi.js`，不依赖开发机上的 `node_modules`。
 
-`@earendil-works/pi-coding-agent` 是 host-provided peer dependency，开发基线固定为 `0.84.4`，已对照 `0.85.1` 的相关 lifecycle types 验证，保守兼容范围为 `>=0.84.4 <0.86.0`。`npm pack` 的发布内容由 package smoke 检查；发布 v0.1.1 时，npm registry 使用同一份 deterministic `dist/` artifact。
+`@earendil-works/pi-coding-agent` 是 host-provided peer dependency，开发基线固定为 `0.84.4`，已对照 `0.85.1` 的相关 lifecycle types 验证，保守兼容范围为 `>=0.84.4 <0.86.0`。`npm pack` 的发布内容由 package smoke 检查；发布 v0.2.0 时也应使用同一份 deterministic `dist/` artifact。

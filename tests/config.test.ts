@@ -1,6 +1,9 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_CONFIG, normalizeConfig } from "../src/config/schema.js";
+import { DEFAULT_CONFIG, loadConfigFile, normalizeConfig } from "../src/config/schema.js";
 
 describe("configuration", () => {
 	it("defaults locale to auto and normalizes supported and invalid values", () => {
@@ -9,6 +12,23 @@ describe("configuration", () => {
 		expect(normalizeConfig({ locale: "en-US" }).locale).toBe("en-US");
 		expect(normalizeConfig({ locale: "fr-FR" }).locale).toBe("auto");
 		expect(DEFAULT_CONFIG.locale).toBe("auto");
+	});
+
+	it("defaults summary inclusion to off and preserves explicit opt-in through file loading", () => {
+		expect(normalizeConfig({}).privacy.includeSummary).toBe(false);
+		expect(DEFAULT_CONFIG.privacy.includeSummary).toBe(false);
+		expect(normalizeConfig({ privacy: { includeSummary: true } }).privacy.includeSummary).toBe(true);
+
+		const directory = mkdtempSync(join(tmpdir(), "pi-agent-pulse-config-test-"));
+		const filePath = join(directory, "pi-pulse.json");
+		try {
+			writeFileSync(filePath, JSON.stringify({}));
+			expect(loadConfigFile(filePath).privacy.includeSummary).toBe(false);
+			writeFileSync(filePath, JSON.stringify({ privacy: { includeSummary: true } }));
+			expect(loadConfigFile(filePath).privacy.includeSummary).toBe(true);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	it("keeps channels independent and clamps unsafe timeout values", () => {

@@ -67,7 +67,7 @@ interface ManagedTask extends Omit<ManagedTaskSnapshot, "currentTools"> {
 const DEFAULT_PRIVACY: TaskManagerPrivacy = {
 	includeHost: true,
 	includeWorkdir: false,
-	includeSummary: true,
+	includeSummary: false,
 };
 
 function timestampOrNow(value: number | undefined, now: number): number {
@@ -293,7 +293,7 @@ export class TaskManager {
 				{
 					endedAt,
 					durationMs: Math.max(0, endedAt - task.startedAt),
-					summary,
+					summary: this.privacy.includeSummary ? summary : undefined,
 					metadata,
 				},
 			),

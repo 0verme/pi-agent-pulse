@@ -31,10 +31,17 @@ function isLocalHostname(hostname: string): boolean {
 	);
 }
 
-function isPrivateIpv4(hostname: string): boolean {
+function parseIpv4(hostname: string): number[] | undefined {
 	const octets = hostname.split(".").map(Number);
-	if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255))
-		return false;
+	if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+		return undefined;
+	}
+	return octets;
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+	const octets = parseIpv4(hostname);
+	if (!octets) return false;
 	const first = octets[0] ?? -1;
 	const second = octets[1] ?? -1;
 	return (
@@ -47,9 +54,46 @@ function isPrivateIpv4(hostname: string): boolean {
 	);
 }
 
+function parseIpv6Hextets(hostname: string): number[] | undefined {
+	const sections = hostname.split("::");
+	if (sections.length > 2) return undefined;
+
+	const left = sections[0] ? sections[0].split(":") : [];
+	const right = sections.length === 2 && sections[1] ? sections[1].split(":") : [];
+	const rawParts = [...left, ...right];
+	const hextets: number[] = [];
+
+	for (const [index, part] of rawParts.entries()) {
+		if (part.includes(".")) {
+			if (index !== rawParts.length - 1) return undefined;
+			const octets = parseIpv4(part);
+			if (!octets) return undefined;
+			hextets.push((octets[0] ?? -1) * 256 + (octets[1] ?? -1), (octets[2] ?? -1) * 256 + (octets[3] ?? -1));
+			continue;
+		}
+		if (!/^[0-9a-f]{1,4}$/i.test(part)) return undefined;
+		hextets.push(Number.parseInt(part, 16));
+	}
+
+	if (sections.length === 1) return hextets.length === 8 ? hextets : undefined;
+	if (hextets.length >= 8) return undefined;
+	return [...new Array<number>(8 - hextets.length).fill(0), ...hextets];
+}
+
+function mappedIpv4FromIpv6(hostname: string): string | undefined {
+	const hextets = parseIpv6Hextets(hostname);
+	if (!hextets || hextets.length !== 8 || !hextets.slice(0, 5).every((part) => part === 0) || hextets[5] !== 0xffff) {
+		return undefined;
+	}
+	const high = hextets[6] ?? -1;
+	const low = hextets[7] ?? -1;
+	if (high < 0 || low < 0) return undefined;
+	return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
+}
+
 function isPrivateIpv6(hostname: string): boolean {
 	if (!hostname.includes(":")) return false;
-	const mappedIpv4 = hostname.startsWith("::ffff:") ? hostname.slice("::ffff:".length) : undefined;
+	const mappedIpv4 = mappedIpv4FromIpv6(hostname);
 	return (
 		(mappedIpv4 !== undefined && isPrivateIpv4(mappedIpv4)) ||
 		hostname.startsWith("fc") ||

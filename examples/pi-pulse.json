@@ -24,6 +24,6 @@
 	"privacy": {
 		"includeHost": true,
 		"includeWorkdir": false,
-		"includeSummary": true
+		"includeSummary": false
 	}
 }
