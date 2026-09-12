@@ -55,10 +55,33 @@ describe("Feishu adapter boundary", () => {
 			warnings: { stalled: true },
 		});
 
-		const payload = renderFeishuPayload(event);
+		const payload = renderFeishuPayload(event, { locale: "en-US" });
 		expect(payload.msg_type).toBe("text");
-		expect(payload.content.text).toContain("TASK_STALLED");
-		expect(payload.content.text).toContain("POSSIBLY_STALLED (heuristic)");
+		expect(payload.content.text).toContain("Task possibly stalled");
+		expect(payload.content.text).toContain("State: Possibly stalled (Heuristic)");
+		expect(payload.content.text).toContain("Duration: unknown");
+		expect(payload.content.text).not.toContain("TASK_STALLED");
+	});
+
+	it("renders translated Chinese labels while preserving summary text", () => {
+		const event = createTaskEvent({
+			type: "TASK_STARTED",
+			timestamp: 0,
+			taskId: "task-中文",
+			sessionId: "session-1",
+			state: "RUNNING",
+			stateEvidence: "pi-event",
+			summary: "请帮我修复这个 Issue",
+		});
+
+		const text = renderFeishuPayload(event, { locale: "zh-CN" }).content.text;
+		expect(text).toContain("[Pi Pulse] 任务开始");
+		expect(text).toContain("任务：task-中文");
+		expect(text).toContain("状态：运行中（Pi 事件）");
+		expect(text).toContain("分支：未知");
+		expect(text).toContain("耗时：未知");
+		expect(text).toContain("摘要：请帮我修复这个 Issue");
+		expect(text).not.toContain("TASK_STARTED");
 	});
 
 	it("uses the system local timezone by default", () => {
@@ -84,7 +107,7 @@ describe("Feishu adapter boundary", () => {
 	});
 
 	it("renders task lifecycle times in the configured timezone and keeps duration/order", () => {
-		const text = renderFeishuPayload(completedEvent(), { displayTimezone: "UTC" }).content.text;
+		const text = renderFeishuPayload(completedEvent(), { locale: "zh-CN", displayTimezone: "UTC" }).content.text;
 		const durationIndex = text.indexOf("耗时：14分55秒");
 		const startedAtIndex = text.indexOf("开始时间：2026-09-11 15:05:05");
 		const endedAtIndex = text.indexOf("结束时间：2026-09-11 15:20:00");
@@ -99,6 +122,7 @@ describe("Feishu adapter boundary", () => {
 		const channel = new FeishuChannel({
 			webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/example",
 			displayTimezone: "Asia/Shanghai",
+			locale: "zh-CN",
 			transport: { post: async (value) => void (request = value) },
 		});
 
@@ -123,7 +147,7 @@ describe("Feishu adapter boundary", () => {
 				stateEvidence: "unknown",
 			});
 
-			const text = renderFeishuPayload(event, { displayTimezone: "UTC" }).content.text;
+			const text = renderFeishuPayload(event, { locale: "zh-CN", displayTimezone: "UTC" }).content.text;
 			expect(text).not.toContain("开始时间：");
 			expect(text).toContain("结束时间：2026-09-10 16:07:32");
 			expect(warning).toHaveBeenCalledWith(

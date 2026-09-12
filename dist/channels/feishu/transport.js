@@ -70,18 +70,23 @@ export class FeishuChannel {
     id = "feishu";
     webhook;
     timeoutMs;
+    locale;
     timestampFormatter;
     transport;
     constructor(options) {
         this.webhook = validateFeishuWebhookUrl(options.webhook).toString();
         this.timeoutMs = Math.min(120_000, Math.max(100, options.timeoutMs ?? 10_000));
+        this.locale = options.locale;
         this.timestampFormatter = createDisplayTimestampFormatter(options.displayTimezone);
         this.transport = options.transport ?? new FetchFeishuTransport();
     }
-    send(event) {
+    send(event, context) {
         return this.transport.post({
             url: this.webhook,
-            body: JSON.stringify(renderFeishuPayload(event, { timestampFormatter: this.timestampFormatter })),
+            body: JSON.stringify(renderFeishuPayload(event, {
+                locale: context?.locale ?? this.locale,
+                timestampFormatter: this.timestampFormatter,
+            })),
             timeoutMs: this.timeoutMs,
             headers: { "content-type": "application/json; charset=utf-8" },
         });

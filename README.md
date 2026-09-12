@@ -52,10 +52,11 @@ Windows 配置路径：
 %USERPROFILE%\.pi\agent\pi-pulse.json
 ```
 
-写入最小 Feishu 配置即可，其余 watchdog、privacy、timeout 和 Generic Webhook 都会使用默认值：
+写入最小 Feishu 配置即可，其余 locale、watchdog、privacy、timeout 和 Generic Webhook 都会使用默认值：
 
 ```json
 {
+	"locale": "auto",
 	"channels": {
 		"feishu": {
 			"enabled": true,
@@ -77,6 +78,16 @@ Feishu 的开始时间和结束时间默认使用 Pi 当前运行环境的 syste
 
 也支持 `Asia/Tokyo`、`America/New_York` 和 `UTC` 等 IANA timezone；非法值会回退到 system local，并产生一次 bounded warning。该设置只影响 Feishu human-readable renderer，不改变 `TaskEvent` 的 canonical UTC timestamp，也不改变 Generic Webhook 的 ISO UTC payload。
 
+#### 通知语言
+
+根配置的 `locale` 支持 `auto`、`zh-CN` 和 `en-US`，缺省值为 `auto`：
+
+- `auto` 优先根据当前 Pi Task 的用户 `input.text` / `before_agent_start.prompt` 判断中文或英文；无法判断时使用 Node/Intl 的 system locale，最后回退到 `en-US`。
+- `zh-CN` 或 `en-US` 会固定所有展示型通知的语言。
+- locale 在 Task 开始附近解析一次，同一个 Task 的 started、Watchdog 与 completed/failed/aborted 通知不会切换语言。
+
+该 i18n 只影响人类可读通知。Core `TaskEvent` 和 Generic Webhook 始终保留 canonical machine values；用户 Prompt、Agent 输出的 `Summary` 不会被翻译。语言识别只在 adapter 内存中使用输入文本，不会扩大 `privacy.includeSummary=false` 的数据传播范围。
+
 ### 4. 启动 Pi
 
 在任意 Pi project 中启动：
@@ -96,14 +107,14 @@ pi
 请回复一句“Pi Pulse smoke test passed”，然后结束任务。
 ```
 
-在 Feishu 群中应看到：
+在 Feishu 群中应看到类似：
 
 ```text
-[Pi Pulse] TASK_STARTED
-[Pi Pulse] TASK_COMPLETED
+[Pi Pulse] 任务开始
+[Pi Pulse] 任务完成
 ```
 
-这里的 `TASK_COMPLETED` 表示 Pi 已发出 `agent_settled`，即没有待处理的 retry、compaction 或 follow-up；它不承诺业务操作成功。channel 发送失败只会在 Pi 本地产生 bounded warning，不会阻断 Pi task。
+这里的 `任务完成` 对应 Core 中的 canonical `TASK_COMPLETED`，表示 Pi 已发出 `agent_settled`，即没有待处理的 retry、compaction 或 follow-up；它不承诺业务操作成功。channel 发送失败只会在 Pi 本地产生 bounded warning，不会阻断 Pi task。
 
 ## Observed Events and Channels
 
@@ -151,7 +162,7 @@ Generic Webhook 示例：
 
 - Pi Pulse 只 OBSERVE，不调用 Pi 的 stop、kill、abort 或其他任务控制 API。
 - 不发送完整 prompt、完整 tool args、源码、完整 tool result 或环境变量。
-- summary 会裁剪并过滤敏感内容；`workdir` 默认关闭。
+- summary 会裁剪并过滤敏感内容；`workdir` 默认关闭。`auto` 语言识别只使用内存中的输入文本，不会额外写入事件、日志或 webhook。
 - 不在日志中输出 webhook URL、token、cookie、secret 或原始 payload。
 - Generic Webhook 会校验 HTTP(S)、host、credentials 和常见 localhost / private network literal；transport 使用 timeout、`redirect: "error"` 和单次请求。
 - channel failure 会被独立捕获，不影响其他 channel 或 Pi runtime。

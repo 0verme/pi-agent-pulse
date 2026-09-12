@@ -78,4 +78,62 @@ describe("Pi lifecycle adapter", () => {
 			rmSync(agentDir, { recursive: true, force: true });
 		}
 	});
+
+	it("keeps the detected locale stable across task lifecycle notifications", async () => {
+		const agentDir = mkdtempSync(join(tmpdir(), "pi-agent-pulse-extension-locale-test-"));
+		const requestBodies: string[] = [];
+		process.env.PI_CODING_AGENT_DIR = agentDir;
+		writeFileSync(
+			join(agentDir, "pi-pulse.json"),
+			JSON.stringify({
+				locale: "auto",
+				channels: {
+					feishu: {
+						enabled: true,
+						webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/example",
+					},
+				},
+			}),
+		);
+		const fetchMock = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+			const request = input instanceof Request ? input : new Request(input);
+			requestBodies.push(await request.text());
+			return new Response(null, { status: 200 });
+		});
+		globalThis.fetch = fetchMock as typeof fetch;
+
+		try {
+			const handlers = new Map<string, (...args: unknown[]) => unknown>();
+			const pi = {
+				on: (event: string, handler: (...args: unknown[]) => unknown) => handlers.set(event, handler),
+				exec: async () => ({ code: 1, killed: false, stdout: "", stderr: "" }),
+			} as unknown as ExtensionAPI;
+			const context = {
+				cwd: agentDir,
+				sessionManager: { getSessionId: () => "session-locale" },
+			} as unknown as ExtensionContext;
+
+			createPiPulseExtension(pi);
+			await handlers.get("session_start")?.({ type: "session_start", reason: "startup" }, context);
+			await handlers.get("before_agent_start")?.(
+				{ type: "before_agent_start", prompt: "请帮我修复这个 Issue" },
+				context,
+			);
+			await handlers.get("agent_start")?.({ type: "agent_start" }, context);
+			await handlers.get("agent_settled")?.({ type: "agent_settled" }, context);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			const notifications = requestBodies.map((body) => JSON.parse(body) as { content: { text: string } });
+			expect(notifications).toHaveLength(2);
+			const texts = notifications.map((notification) => notification.content.text);
+			expect(texts.some((text) => text.startsWith("[Pi Pulse] 任务开始"))).toBe(true);
+			expect(texts.some((text) => text.startsWith("[Pi Pulse] 任务完成"))).toBe(true);
+			for (const notification of notifications) {
+				expect(notification.content.text).not.toContain("Task started");
+				expect(notification.content.text).not.toContain("Task completed");
+			}
+		} finally {
+			rmSync(agentDir, { recursive: true, force: true });
+		}
+	});
 });

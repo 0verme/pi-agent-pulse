@@ -1,5 +1,6 @@
 import type { TaskEvent } from "../../core/events.js";
-import type { OutboundChannel } from "../types.js";
+import type { PulseLocale } from "../../i18n/index.js";
+import type { ChannelDispatchContext, OutboundChannel } from "../types.js";
 import { createDisplayTimestampFormatter, renderFeishuPayload, type DisplayTimestampFormatter } from "./renderer.js";
 
 export interface FeishuRequest {
@@ -85,6 +86,7 @@ export class FetchFeishuTransport implements FeishuTransport {
 export interface FeishuChannelOptions {
 	webhook: string;
 	timeoutMs?: number;
+	locale?: PulseLocale;
 	displayTimezone?: string;
 	transport?: FeishuTransport;
 }
@@ -94,20 +96,27 @@ export class FeishuChannel implements OutboundChannel {
 	public readonly id = "feishu";
 	private readonly webhook: string;
 	private readonly timeoutMs: number;
+	private readonly locale: PulseLocale | undefined;
 	private readonly timestampFormatter: DisplayTimestampFormatter;
 	private readonly transport: FeishuTransport;
 
 	public constructor(options: FeishuChannelOptions) {
 		this.webhook = validateFeishuWebhookUrl(options.webhook).toString();
 		this.timeoutMs = Math.min(120_000, Math.max(100, options.timeoutMs ?? 10_000));
+		this.locale = options.locale;
 		this.timestampFormatter = createDisplayTimestampFormatter(options.displayTimezone);
 		this.transport = options.transport ?? new FetchFeishuTransport();
 	}
 
-	public send(event: TaskEvent): Promise<void> {
+	public send(event: TaskEvent, context?: ChannelDispatchContext): Promise<void> {
 		return this.transport.post({
 			url: this.webhook,
-			body: JSON.stringify(renderFeishuPayload(event, { timestampFormatter: this.timestampFormatter })),
+			body: JSON.stringify(
+				renderFeishuPayload(event, {
+					locale: context?.locale ?? this.locale,
+					timestampFormatter: this.timestampFormatter,
+				}),
+			),
 			timeoutMs: this.timeoutMs,
 			headers: { "content-type": "application/json; charset=utf-8" },
 		});

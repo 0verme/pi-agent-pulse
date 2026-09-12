@@ -1,3 +1,5 @@
+import { type PulseLocale } from "../i18n/index.js";
+export type { PulseLocale };
 export interface ChannelConfig {
     enabled: boolean;
     timeoutMs: number;
@@ -21,6 +23,7 @@ export interface PrivacyConfig {
     includeSummary: boolean;
 }
 export interface PulseConfig {
+    locale: PulseLocale;
     channels: {
         webhook: GenericWebhookConfig;
         feishu: FeishuConfig;

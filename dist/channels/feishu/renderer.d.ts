@@ -1,4 +1,5 @@
 import type { TaskEvent } from "../../core/events.js";
+import { type PulseLocale } from "../../i18n/index.js";
 export interface FeishuTextPayload {
     msg_type: "text";
     content: {
@@ -8,6 +9,7 @@ export interface FeishuTextPayload {
 export type DisplayTimestampInput = string | number | Date | undefined;
 export type DisplayTimestampFormatter = (value: DisplayTimestampInput) => string | undefined;
 export interface FeishuRenderOptions {
+    locale?: PulseLocale;
     displayTimezone?: string;
     timestampFormatter?: DisplayTimestampFormatter;
 }

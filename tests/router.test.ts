@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { ChannelRouter } from "../src/channels/router.js";
-import type { OutboundChannel } from "../src/channels/types.js";
+import type { ChannelDispatchContext, OutboundChannel } from "../src/channels/types.js";
 import { createTaskEvent, type TaskEvent } from "../src/core/events.js";
 
 function event(eventId = "event-1"): TaskEvent {
@@ -36,6 +36,26 @@ describe("ChannelRouter", () => {
 		expect(healthy.send).toHaveBeenCalledTimes(1);
 		expect(failing.send).toHaveBeenCalledTimes(1);
 		expect(warnings).toEqual(["failing:TASK_STARTED"]);
+	});
+
+	it("passes presentation context without changing the canonical event", async () => {
+		const contexts: ChannelDispatchContext[] = [];
+		const receivedEvents: TaskEvent[] = [];
+		const channel: OutboundChannel = {
+			id: "presentation",
+			send: async (receivedEvent, context) => {
+				receivedEvents.push(receivedEvent);
+				if (context) contexts.push(context);
+			},
+		};
+		const router = new ChannelRouter([channel]);
+		const taskEvent = event("presentation-event");
+
+		router.dispatch(taskEvent, { locale: "zh-CN" });
+		await router.flush();
+
+		expect(receivedEvents[0]?.type).toBe("TASK_STARTED");
+		expect(contexts).toEqual([{ locale: "zh-CN" }]);
 	});
 
 	it("supports zero configured channels", async () => {

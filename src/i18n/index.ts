@@ -1,0 +1,180 @@
+import type { TaskEventType } from "../core/events.js";
+import type { StateEvidence, TaskState } from "../core/task-state.js";
+import { EN_US_MESSAGES } from "./en-US.js";
+import { ZH_CN_MESSAGES } from "./zh-CN.js";
+
+export type PulseLocale = "auto" | "zh-CN" | "en-US";
+export type ResolvedLocale = Exclude<PulseLocale, "auto">;
+
+export type FieldLabel =
+	| "Task"
+	| "Session"
+	| "State"
+	| "Host"
+	| "Repository"
+	| "Branch"
+	| "Duration"
+	| "Start Time"
+	| "End Time"
+	| "Tool"
+	| "Summary"
+	| "Warnings";
+
+export type WarningLabel = "longTask" | "longTool" | "stalled";
+export type WatchdogLevel = "notice" | "warning" | "critical";
+export type TranslationKey =
+	| FieldLabel
+	| TaskState
+	| StateEvidence
+	| WarningLabel
+	| "unknown"
+	| "unknownEvidence"
+	| "yes"
+	| "no";
+
+export interface I18nMessages {
+	labels: Record<TranslationKey, string>;
+	events: Record<TaskEventType, string>;
+	watchdog: Record<"longTask" | "longTool" | "stalled", string>;
+	watchdogLevels: Record<WatchdogLevel, string>;
+	seconds: string;
+	minutes: string;
+}
+
+const MESSAGES: Record<ResolvedLocale, I18nMessages> = {
+	"zh-CN": ZH_CN_MESSAGES,
+	"en-US": EN_US_MESSAGES,
+};
+
+const URL_OR_EMAIL = /\S+@\S+|\b(?:https?|ftp):\/\/\S+|\bwww\.\S+|\b[\w-]+(?:\.[\w-]+)+(?:[/?#]\S*)?/giu;
+const HAN_CHARACTER = /\p{Script=Han}/u;
+const LATIN_CHARACTER = /\p{Script=Latin}/u;
+const MIN_HAN_CHARACTERS = 2;
+const MIN_LATIN_CHARACTERS = 3;
+
+function readSystemLocale(): string | undefined {
+	try {
+		return Intl.DateTimeFormat().resolvedOptions().locale;
+	} catch {
+		return undefined;
+	}
+}
+
+function countCharacters(value: string, pattern: RegExp): number {
+	let count = 0;
+	for (const character of value) {
+		if (pattern.test(character)) count += 1;
+	}
+	return count;
+}
+
+/** Return a prompt-only language signal without applying system-locale fallback. */
+export function detectTextLocale(value: unknown): ResolvedLocale | undefined {
+	if (typeof value !== "string" || !value.trim()) return undefined;
+
+	const text = value.replace(URL_OR_EMAIL, " ");
+	const hanCount = countCharacters(text, HAN_CHARACTER);
+	const latinCount = countCharacters(text, LATIN_CHARACTER);
+
+	if (hanCount >= MIN_HAN_CHARACTERS && (latinCount === 0 || hanCount * 3 >= latinCount)) {
+		return "zh-CN";
+	}
+	if (latinCount >= MIN_LATIN_CHARACTERS) return "en-US";
+	return undefined;
+}
+
+/** Compatibility alias for callers that use the shorter detector name. */
+export function detectLocale(value: unknown): ResolvedLocale | undefined {
+	return detectTextLocale(value);
+}
+
+/** Map an Intl/Node locale to the two supported presentation locales. */
+export function detectSystemLocale(systemLocale = readSystemLocale()): ResolvedLocale {
+	return typeof systemLocale === "string" && systemLocale.trim().toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
+}
+
+/** Normalize untrusted configuration; invalid values safely return the auto mode. */
+export function normalizeLocale(value: unknown): PulseLocale {
+	if (value === "zh-CN" || value === "en-US" || value === "auto") return value;
+	return "auto";
+}
+
+/** Resolve one stable presentation locale from configuration, prompt and system fallback. */
+export function resolveLocale(configured: unknown = "auto", prompt?: string, systemLocale?: string): ResolvedLocale {
+	const normalized = normalizeLocale(configured);
+	if (normalized !== "auto") return normalized;
+	return detectTextLocale(prompt) ?? detectSystemLocale(systemLocale);
+}
+
+function messagesFor(locale: ResolvedLocale): I18nMessages {
+	return MESSAGES[locale];
+}
+
+function hasOwnMessage<T extends object>(messages: T, key: PropertyKey): key is keyof T {
+	return Object.hasOwn(messages, key);
+}
+
+export function t(key: TranslationKey, locale: PulseLocale = "auto"): string {
+	return messagesFor(resolveLocale(locale)).labels[key];
+}
+
+export function eventLabel(eventType: TaskEventType | string, locale: PulseLocale = "auto"): string {
+	const messages = messagesFor(resolveLocale(locale)).events;
+	return hasOwnMessage(messages, eventType) ? messages[eventType] : eventType;
+}
+
+export function fieldLabel(field: FieldLabel, locale: PulseLocale = "auto"): string {
+	return t(field, locale);
+}
+
+export function stateLabel(state: TaskState | string, locale: PulseLocale = "auto"): string {
+	const messages = messagesFor(resolveLocale(locale)).labels;
+	return hasOwnMessage(messages, state) ? messages[state] : state;
+}
+
+export function evidenceLabel(evidence: StateEvidence | string, locale: PulseLocale = "auto"): string {
+	const key = evidence === "unknown" ? "unknownEvidence" : evidence;
+	const messages = messagesFor(resolveLocale(locale)).labels;
+	return hasOwnMessage(messages, key) ? messages[key] : evidence;
+}
+
+export function warningLabel(warning: WarningLabel | string, locale: PulseLocale = "auto"): string {
+	const messages = messagesFor(resolveLocale(locale)).labels;
+	return hasOwnMessage(messages, warning) ? messages[warning] : warning;
+}
+
+/** Translate only summaries generated by Pi Pulse watchdog signals; user text stays unchanged. */
+export function formatSummary(
+	summary: string | undefined,
+	metadata: Readonly<Record<string, unknown>> | undefined,
+	locale: PulseLocale = "auto",
+): string | undefined {
+	const messages = messagesFor(resolveLocale(locale));
+	if (metadata?.signal === "LONG_TASK") {
+		const level = metadata.level;
+		if (typeof level === "string" && hasOwnMessage(messages.watchdogLevels, level)) {
+			return messages.watchdog.longTask.replace("{level}", messages.watchdogLevels[level as WatchdogLevel]);
+		}
+	}
+	if (metadata?.signal === "LONG_TOOL") return messages.watchdog.longTool;
+	if (metadata?.signal === "POSSIBLY_STALLED") return messages.watchdog.stalled;
+	return summary;
+}
+
+export function booleanLabel(value: boolean, locale: PulseLocale = "auto"): string {
+	return t(value ? "yes" : "no", locale);
+}
+
+export function formatDuration(durationMs: number | undefined, locale: PulseLocale = "auto"): string {
+	const resolvedLocale = resolveLocale(locale);
+	if (durationMs === undefined || !Number.isFinite(durationMs)) return t("unknown", resolvedLocale);
+
+	const totalSeconds = Math.floor(Math.max(0, durationMs) / 1_000);
+	const seconds = totalSeconds % 60;
+	const minutes = Math.floor(totalSeconds / 60);
+	const messages = messagesFor(resolvedLocale);
+	if (minutes === 0) return `${seconds}${messages.seconds}`;
+	return resolvedLocale === "zh-CN"
+		? `${minutes}${messages.minutes}${seconds}${messages.seconds}`
+		: `${minutes}${messages.minutes} ${seconds}${messages.seconds}`;
+}
