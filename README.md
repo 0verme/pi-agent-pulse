@@ -86,7 +86,7 @@ Feishu 的开始时间和结束时间默认使用 Pi 当前运行环境的 syste
 - `zh-CN` 或 `en-US` 会固定所有展示型通知的语言。
 - locale 在 Task 开始附近解析一次，同一个 Task 的 started、Watchdog 与 completed/failed/aborted 通知不会切换语言。
 
-该 i18n 只影响人类可读通知。Core `TaskEvent` 和 Generic Webhook 始终保留 canonical machine values；用户 Prompt、Agent 输出的 `Summary` 不会被翻译。语言识别只在 adapter 内存中使用输入文本，不会扩大 `privacy.includeSummary=false` 的数据传播范围。
+该 i18n 只影响人类可读通知。Core `TaskEvent` 和 Generic Webhook 始终保留 canonical machine values；可选的 `summary` 不会被翻译。`auto` 语言识别只在 adapter 内存中读取输入，并在 `privacy.includeSummary=false` 时不把输入原文写入 `TaskEvent`。
 
 ### 4. 启动 Pi
 
@@ -161,10 +161,12 @@ Generic Webhook 示例：
 ## Security / Privacy
 
 - Pi Pulse 只 OBSERVE，不调用 Pi 的 stop、kill、abort 或其他任务控制 API。
-- 不发送完整 prompt、完整 tool args、源码、完整 tool result 或环境变量。
-- summary 会裁剪并过滤敏感内容；`workdir` 默认关闭。`auto` 语言识别只使用内存中的输入文本，不会额外写入事件、日志或 webhook。
+- `privacy.includeSummary` 默认是 `false`。默认通知主要包含任务状态、时间、耗时（完成事件）、允许的仓库/分支等上下文和 Watchdog 信息；具体字段以实际 `TaskEvent` schema 为准。固定的 Watchdog 说明文字可能仍会出现，但默认不会携带用户输入或模型输出摘要。
+- 将 `privacy.includeSummary` 显式设置为 `true` 可恢复 summary 能力。开启后，通知可能包含经过截断和清理的用户输入或模型输出原文片段。截断/清理不等于去除敏感性；只有在你信任目标 IM 或 Webhook 接收端时才应启用。
+- `TaskEvent` schema 不包含 tool arguments、源码、完整 tool result 或环境变量；summary 是否出现仍由 `privacy.includeSummary` 控制。
+- `workdir` 默认关闭；`auto` 语言识别只在 adapter 内存中读取输入，不额外写入事件或日志。
 - 不在日志中输出 webhook URL、token、cookie、secret 或原始 payload。
-- Generic Webhook 会校验 HTTP(S)、host、credentials 和常见 localhost / private network literal；transport 使用 timeout、`redirect: "error"` 和单次请求。
+- Generic Webhook 会校验 HTTP(S)、credentials，以及显式提供的常见 localhost、private IPv4、private IPv6 和 IPv4-mapped IPv6 literal；transport 使用 timeout、`redirect: "error"` 和单次请求。这个 URL 校验只拒绝显式提供的本地/私网地址，不保证阻止域名解析后指向私网地址的情况，因此不应描述为完整 SSRF 防护。
 - channel failure 会被独立捕获，不影响其他 channel 或 Pi runtime。
 
 ## Architecture
