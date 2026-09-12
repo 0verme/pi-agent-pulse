@@ -18,13 +18,13 @@ export class ChannelRouter {
         return this.channels.map((channel) => channel.id);
     }
     /** Queue one event for every configured channel; this method never awaits I/O. */
-    dispatch(event) {
+    dispatch(event, context) {
         if (this.rememberedEventIds.has(event.eventId))
             return;
         this.rememberEventId(event.eventId);
         for (const channel of this.channels) {
             const operation = Promise.resolve()
-                .then(() => channel.send(event))
+                .then(() => channel.send(event, context))
                 .catch(() => {
                 this.warn({
                     channelId: channel.id,

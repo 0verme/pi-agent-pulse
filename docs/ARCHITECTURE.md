@@ -50,8 +50,9 @@ extension/pi.ts -> core/*
 extension/pi.ts -> channels/*
 extension/pi.ts -> config/*
 core/*          -> core/* only
-channels/*      -> core/events.ts + channels/types.ts
-config/*        -> no concrete channel implementation
+channels/webhook/* -> core/events.ts + channels/types.ts
+channels/feishu/*  -> core/events.ts + channels/types.ts + i18n/*
+config/*           -> no concrete channel implementation
 ```
 
 `core/*` 不允许 import `channels/feishu/*` 或 `channels/webhook/*`。未来新增 channel 时，应在 adapter 层实现 `OutboundChannel`，而不是修改 State Machine。
@@ -78,13 +79,13 @@ Core 输出 `TaskEvent`，其中只有 channel-neutral 的字段：event type、
 - 任何 webhook host
 - 飞书 token、签名或 inbound API
 
-`src/channels/feishu/renderer.ts` 负责把领域事件转换为 bounded text，`transport.ts` 负责 Feishu-specific outbound HTTP contract。Feishu 的 lifecycle timestamp 由 renderer 使用 system local timezone 展示，也可以通过根配置的 `displayTimezone` 指定 IANA timezone；这只改变 human-readable presentation，不改变 Core 产生的 canonical UTC timestamp。以后改变 Feishu 格式，不需要改 Core、TaskManager 或 Watchdog。
+`src/channels/feishu/renderer.ts` 负责把领域事件转换为 bounded text，`transport.ts` 负责 Feishu-specific outbound HTTP contract。Feishu 的 lifecycle timestamp 由 renderer 使用 system local timezone 展示，也可以通过根配置的 `displayTimezone` 指定 IANA timezone；通知 locale 由 extension 在 Task 开始附近解析后通过轻量 render context 传入，不写入 `TaskEvent`。这只改变 human-readable presentation，不改变 Core 产生的 canonical UTC timestamp。以后改变 Feishu 格式，不需要改 Core、TaskManager 或 Watchdog。
 
 Generic Webhook 同样是一等公民：它直接发送 `TaskEvent` JSON，而不是把所有渠道都先转成飞书消息。
 
 ## 5. Outbound 与未来 Inbound 分离
 
-本轮只有 `OutboundChannel.send(event)`。Outbound 是 Pi 状态变化后的单向通知，不接受远端指令，也不拥有 task control 权限。
+本轮只有 `OutboundChannel.send(event, context?)`。Outbound 是 Pi 状态变化后的单向通知，不接受远端指令，也不拥有 task control 权限；context 只承载展示型 locale，Generic Webhook 会忽略它并继续发送 canonical `TaskEvent`。
 
 未来的 inbound IM、remote query 或 interactive channel 必须使用独立的 command/query boundary，并经过明确的权限、认证和 session lookup。它们不能复用 outbound adapter 的 send 方法，也不能通过通知代码调用 `abort`、`shutdown`、`stop` 或 `kill`。
 
@@ -143,7 +144,7 @@ Generic Webhook 和 Feishu transport 都是单次请求，使用 timeout、`redi
 
 领域事件是出站边界。默认策略：
 
-- prompt 只允许作为短、经过过滤的 summary 候选，不发送完整 prompt
+- prompt 只允许作为短、经过过滤的 summary 候选，不发送完整 prompt；`auto` locale detection 只在 adapter 内存中读取用户输入，不把原文写入事件或日志
 - tool args 不进入事件；只允许 bounded tool name
 - 不发送源码、完整 tool result 或环境变量
 - `workdir` 默认不包含；显式开启后仍裁剪长度

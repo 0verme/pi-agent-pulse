@@ -1,4 +1,5 @@
 {
+	"locale": "auto",
 	"hostname": "my-machine",
 	"displayTimezone": "Asia/Shanghai",
 	"channels": {

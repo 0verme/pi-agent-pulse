@@ -1,5 +1,5 @@
 import type { TaskEvent } from "../core/events.js";
-import type { ChannelRouterOptions, OutboundChannel } from "./types.js";
+import type { ChannelDispatchContext, ChannelRouterOptions, OutboundChannel } from "./types.js";
 /**
  * Dispatches outbound events without coupling the core to a destination.
  * Every send is fire-and-forget from the caller's perspective and is isolated
@@ -14,7 +14,7 @@ export declare class ChannelRouter {
     constructor(channels: readonly OutboundChannel[], options?: ChannelRouterOptions);
     get channelIds(): readonly string[];
     /** Queue one event for every configured channel; this method never awaits I/O. */
-    dispatch(event: TaskEvent): void;
+    dispatch(event: TaskEvent, context?: ChannelDispatchContext): void;
     /** Test/shutdown helper; normal Pi lifecycle code should not await dispatch. */
     flush(): Promise<void>;
     private rememberEventId;

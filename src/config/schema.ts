@@ -1,5 +1,9 @@
 import { readFileSync } from "node:fs";
 
+import { normalizeLocale, type PulseLocale } from "../i18n/index.js";
+
+export type { PulseLocale };
+
 export interface ChannelConfig {
 	enabled: boolean;
 	timeoutMs: number;
@@ -28,6 +32,7 @@ export interface PrivacyConfig {
 }
 
 export interface PulseConfig {
+	locale: PulseLocale;
 	channels: {
 		webhook: GenericWebhookConfig;
 		feishu: FeishuConfig;
@@ -39,6 +44,7 @@ export interface PulseConfig {
 }
 
 export const DEFAULT_CONFIG: PulseConfig = {
+	locale: "auto",
 	channels: {
 		webhook: { enabled: false, url: "", timeoutMs: 10_000 },
 		feishu: { enabled: false, webhook: "", timeoutMs: 10_000 },
@@ -95,9 +101,11 @@ export function normalizeConfig(value: unknown): PulseConfig {
 	const watchdog = readRecord(root, "watchdog");
 	const privacy = readRecord(root, "privacy");
 
+	const locale = normalizeLocale(root.locale);
 	const displayTimezone = readString(root, "displayTimezone", "");
 	const hostname = readString(root, "hostname", "");
 	return {
+		locale,
 		channels: {
 			webhook: {
 				enabled: readBoolean(webhook, "enabled", DEFAULT_CONFIG.channels.webhook.enabled),

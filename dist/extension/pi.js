@@ -6,6 +6,7 @@ import { ChannelRouter } from "../channels/router.js";
 import { FeishuChannel } from "../channels/feishu/transport.js";
 import { GenericWebhookChannel } from "../channels/webhook/transport.js";
 import { loadConfigFile } from "../config/schema.js";
+import { detectTextLocale, resolveLocale } from "../i18n/index.js";
 const CONFIG_FILE_NAME = "pi-pulse.json";
 const GIT_BRANCH_TIMEOUT_MS = 2_000;
 const MAX_SUMMARY_CHARS = 240;
@@ -110,6 +111,7 @@ function createChannels(config) {
             channels.push(new FeishuChannel({
                 webhook: config.channels.feishu.webhook,
                 timeoutMs: config.channels.feishu.timeoutMs,
+                locale: config.locale,
                 displayTimezone: config.displayTimezone,
             }));
         }
@@ -130,6 +132,8 @@ function safeObserve(label, operation) {
 /** Pi lifecycle adapter. It is the only module that knows the Pi extension API. */
 export default function createPiPulseExtension(pi) {
     const config = loadConfigFile(join(getAgentDir(), CONFIG_FILE_NAME));
+    const taskLocales = new Map();
+    const fallbackLocale = resolveLocale(config.locale);
     const router = new ChannelRouter(createChannels(config), {
         onWarning: (warning) => {
             console.warn(`[pi-pulse] ${warning.channelId} could not deliver ${warning.eventType}; ignored.`);
@@ -144,10 +148,11 @@ export default function createPiPulseExtension(pi) {
             stalledMs: milliseconds(config.watchdog.stalledMinutes),
         },
         privacy: config.privacy,
-        onEvent: (event) => router.dispatch(event),
+        onEvent: (event) => router.dispatch(event, { locale: taskLocales.get(event.sessionId) ?? fallbackLocale }),
         onWarning: (source) => console.warn(`[pi-pulse] ${source} was ignored.`),
     });
     let pendingTaskSummary;
+    let pendingTaskLocale;
     let latestOutput;
     let notificationSent = false;
     const touch = (ctx) => {
@@ -155,15 +160,19 @@ export default function createPiPulseExtension(pi) {
     };
     pi.on("session_start", () => {
         pendingTaskSummary = undefined;
+        pendingTaskLocale = undefined;
         latestOutput = undefined;
         notificationSent = false;
     });
     pi.on("input", (event) => {
-        if (event.streamingBehavior === undefined)
-            pendingTaskSummary = boundedSummary(event.text);
+        if (event.streamingBehavior !== undefined)
+            return;
+        pendingTaskSummary = boundedSummary(event.text);
+        pendingTaskLocale = config.locale === "auto" ? detectTextLocale(event.text) : resolveLocale(config.locale);
     });
     pi.on("before_agent_start", (event) => {
         pendingTaskSummary = boundedSummary(event.prompt);
+        pendingTaskLocale = config.locale === "auto" ? detectTextLocale(event.prompt) : resolveLocale(config.locale);
     });
     pi.on("agent_start", (_event, ctx) => {
         safeObserve("agent_start", () => {
@@ -171,8 +180,10 @@ export default function createPiPulseExtension(pi) {
             if (manager.getTask(sessionId)) {
                 manager.recordActivity(sessionId);
                 pendingTaskSummary = undefined;
+                pendingTaskLocale = undefined;
                 return;
             }
+            taskLocales.set(sessionId, pendingTaskLocale ?? resolveLocale(config.locale));
             const startedEvent = manager.startTask({
                 sessionId,
                 host: config.privacy.includeHost ? (config.hostname ?? hostname()) : undefined,
@@ -183,6 +194,7 @@ export default function createPiPulseExtension(pi) {
             if (startedEvent)
                 notificationSent = false;
             pendingTaskSummary = undefined;
+            pendingTaskLocale = undefined;
             void readGitBranch(pi, ctx.cwd).then((branch) => {
                 if (branch)
                     manager.updateTaskIdentity(sessionId, { branch });
@@ -227,13 +239,19 @@ export default function createPiPulseExtension(pi) {
             if (notificationSent)
                 return;
             notificationSent = true;
-            manager.settleTask(readSessionId(ctx), config.privacy.includeSummary ? latestOutput : undefined);
+            const sessionId = readSessionId(ctx);
+            const completedEvent = manager.settleTask(sessionId, config.privacy.includeSummary ? latestOutput : undefined);
+            if (completedEvent)
+                taskLocales.delete(sessionId);
         });
     });
     pi.on("session_shutdown", (_event, ctx) => {
         safeObserve("session_shutdown", () => {
-            manager.endSession(readSessionId(ctx));
+            const sessionId = readSessionId(ctx);
+            manager.endSession(sessionId);
+            taskLocales.delete(sessionId);
             pendingTaskSummary = undefined;
+            pendingTaskLocale = undefined;
             latestOutput = undefined;
             notificationSent = false;
         });

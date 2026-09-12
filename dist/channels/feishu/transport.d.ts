@@ -1,5 +1,6 @@
 import type { TaskEvent } from "../../core/events.js";
-import type { OutboundChannel } from "../types.js";
+import type { PulseLocale } from "../../i18n/index.js";
+import type { ChannelDispatchContext, OutboundChannel } from "../types.js";
 export interface FeishuRequest {
     url: string;
     body: string;
@@ -15,6 +16,7 @@ export declare class FetchFeishuTransport implements FeishuTransport {
 export interface FeishuChannelOptions {
     webhook: string;
     timeoutMs?: number;
+    locale?: PulseLocale;
     displayTimezone?: string;
     transport?: FeishuTransport;
 }
@@ -23,9 +25,10 @@ export declare class FeishuChannel implements OutboundChannel {
     readonly id = "feishu";
     private readonly webhook;
     private readonly timeoutMs;
+    private readonly locale;
     private readonly timestampFormatter;
     private readonly transport;
     constructor(options: FeishuChannelOptions);
-    send(event: TaskEvent): Promise<void>;
+    send(event: TaskEvent, context?: ChannelDispatchContext): Promise<void>;
 }
 //# sourceMappingURL=transport.d.ts.map

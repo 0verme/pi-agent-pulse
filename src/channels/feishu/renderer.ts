@@ -1,4 +1,18 @@
 import type { TaskEvent } from "../../core/events.js";
+import {
+	booleanLabel,
+	eventLabel,
+	evidenceLabel,
+	fieldLabel,
+	formatDuration,
+	formatSummary,
+	resolveLocale,
+	stateLabel,
+	t,
+	type PulseLocale,
+	type ResolvedLocale,
+	warningLabel,
+} from "../../i18n/index.js";
 
 export interface FeishuTextPayload {
 	msg_type: "text";
@@ -11,6 +25,7 @@ export type DisplayTimestampInput = string | number | Date | undefined;
 export type DisplayTimestampFormatter = (value: DisplayTimestampInput) => string | undefined;
 
 export interface FeishuRenderOptions {
+	locale?: PulseLocale;
 	displayTimezone?: string;
 	timestampFormatter?: DisplayTimestampFormatter;
 }
@@ -18,15 +33,18 @@ export interface FeishuRenderOptions {
 const MAX_FEISHU_TEXT_CHARS = 3_500;
 const INVALID_DISPLAY_TIMEZONE_WARNING = "[pi-pulse] Invalid displayTimezone; using system local timezone.";
 
-function display(value: string | undefined, fallback = "unknown"): string {
-	return value?.trim() || fallback;
+function display(value: string | undefined, locale: ResolvedLocale): string {
+	return value?.trim() || t("unknown", locale);
 }
 
-function duration(event: TaskEvent): string {
-	if (event.durationMs === undefined) return "unknown";
-	const seconds = Math.floor(event.durationMs / 1_000);
-	if (seconds < 60) return `${seconds}秒`;
-	return `${Math.floor(seconds / 60)}分${seconds % 60}秒`;
+function field(label: string, value: string, locale: ResolvedLocale): string {
+	return locale === "zh-CN" ? `${label}：${value}` : `${label}: ${value}`;
+}
+
+function state(value: TaskEvent["state"], evidence: TaskEvent["stateEvidence"], locale: ResolvedLocale): string {
+	const stateText = stateLabel(value, locale);
+	const evidenceText = evidenceLabel(evidence, locale);
+	return locale === "zh-CN" ? `${stateText}（${evidenceText}）` : `${stateText} (${evidenceText})`;
 }
 
 function createIntlFormatter(timezone?: string): Intl.DateTimeFormat {
@@ -111,14 +129,21 @@ function warnMissingStartedAt(): void {
 	}
 }
 
-function lifecycleTimes(event: TaskEvent, timestampFormatter: DisplayTimestampFormatter): string[] {
+function lifecycleTimes(
+	event: TaskEvent,
+	timestampFormatter: DisplayTimestampFormatter,
+	locale: ResolvedLocale,
+): string[] {
 	if (!isTaskEndEvent(event)) return [];
 
 	const startedAt = timestampFormatter(event.startedAt);
 	if (!startedAt) warnMissingStartedAt();
 
 	const endedAt = timestampFormatter(event.endedAt);
-	return [...(startedAt ? [`开始时间：${startedAt}`] : []), ...(endedAt ? [`结束时间：${endedAt}`] : [])];
+	return [
+		...(startedAt ? [field(fieldLabel("Start Time", locale), startedAt, locale)] : []),
+		...(endedAt ? [field(fieldLabel("End Time", locale), endedAt, locale)] : []),
+	];
 }
 
 function truncate(value: string): string {
@@ -129,24 +154,29 @@ function truncate(value: string): string {
 
 /** Render a bounded text message without making Feishu part of the core model. */
 export function renderFeishuText(event: TaskEvent, options: FeishuRenderOptions = {}): string {
+	const locale = resolveLocale(options.locale);
 	const timestampFormatter = options.timestampFormatter ?? createDisplayTimestampFormatter(options.displayTimezone);
 	const lines = [
-		`[Pi Pulse] ${event.type}`,
-		`Task: ${display(event.taskId)}`,
-		`Session: ${display(event.sessionId)}`,
-		`State: ${event.state} (${event.stateEvidence})`,
-		`Host: ${display(event.host)}`,
-		`Repository: ${display(event.repo)}`,
-		`Branch: ${display(event.branch)}`,
-		`耗时：${duration(event)}`,
-		...lifecycleTimes(event, timestampFormatter),
+		`[Pi Pulse] ${eventLabel(event.type, locale)}`,
+		field(fieldLabel("Task", locale), display(event.taskId, locale), locale),
+		field(fieldLabel("Session", locale), display(event.sessionId, locale), locale),
+		field(fieldLabel("State", locale), state(event.state, event.stateEvidence, locale), locale),
+		field(fieldLabel("Host", locale), display(event.host, locale), locale),
+		field(fieldLabel("Repository", locale), display(event.repo, locale), locale),
+		field(fieldLabel("Branch", locale), display(event.branch, locale), locale),
+		field(fieldLabel("Duration", locale), formatDuration(event.durationMs, locale), locale),
+		...lifecycleTimes(event, timestampFormatter, locale),
 	];
-	if (event.currentTool) lines.push(`Tool: ${event.currentTool}`);
-	if (event.summary) lines.push(`Summary: ${event.summary}`);
+	if (event.currentTool) lines.push(field(fieldLabel("Tool", locale), event.currentTool, locale));
+	const summary = formatSummary(event.summary, event.metadata, locale);
+	if (summary) lines.push(field(fieldLabel("Summary", locale), summary, locale));
 	if (event.warnings.longTask || event.warnings.longTool || event.warnings.stalled) {
-		lines.push(
-			`Warnings: longTask=${event.warnings.longTask}, longTool=${event.warnings.longTool}, stalled=${event.warnings.stalled}`,
-		);
+		const warnings = [
+			`${warningLabel("longTask", locale)}=${booleanLabel(event.warnings.longTask, locale)}`,
+			`${warningLabel("longTool", locale)}=${booleanLabel(event.warnings.longTool, locale)}`,
+			`${warningLabel("stalled", locale)}=${booleanLabel(event.warnings.stalled, locale)}`,
+		].join(", ");
+		lines.push(field(fieldLabel("Warnings", locale), warnings, locale));
 	}
 	return truncate(lines.join("\n"));
 }

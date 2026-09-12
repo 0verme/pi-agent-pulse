@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
+import { normalizeLocale } from "../i18n/index.js";
 export const DEFAULT_CONFIG = {
+    locale: "auto",
     channels: {
         webhook: { enabled: false, url: "", timeoutMs: 10_000 },
         feishu: { enabled: false, webhook: "", timeoutMs: 10_000 },
@@ -50,9 +52,11 @@ export function normalizeConfig(value) {
     const feishu = readRecord(channels, "feishu");
     const watchdog = readRecord(root, "watchdog");
     const privacy = readRecord(root, "privacy");
+    const locale = normalizeLocale(root.locale);
     const displayTimezone = readString(root, "displayTimezone", "");
     const hostname = readString(root, "hostname", "");
     return {
+        locale,
         channels: {
             webhook: {
                 enabled: readBoolean(webhook, "enabled", DEFAULT_CONFIG.channels.webhook.enabled),

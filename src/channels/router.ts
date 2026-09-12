@@ -1,5 +1,5 @@
 import type { TaskEvent } from "../core/events.js";
-import type { ChannelRouterOptions, ChannelWarning, OutboundChannel } from "./types.js";
+import type { ChannelDispatchContext, ChannelRouterOptions, ChannelWarning, OutboundChannel } from "./types.js";
 
 /**
  * Dispatches outbound events without coupling the core to a destination.
@@ -24,13 +24,13 @@ export class ChannelRouter {
 	}
 
 	/** Queue one event for every configured channel; this method never awaits I/O. */
-	public dispatch(event: TaskEvent): void {
+	public dispatch(event: TaskEvent, context?: ChannelDispatchContext): void {
 		if (this.rememberedEventIds.has(event.eventId)) return;
 		this.rememberEventId(event.eventId);
 
 		for (const channel of this.channels) {
 			const operation = Promise.resolve()
-				.then(() => channel.send(event))
+				.then(() => channel.send(event, context))
 				.catch(() => {
 					this.warn({
 						channelId: channel.id,

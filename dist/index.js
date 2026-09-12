@@ -8,5 +8,6 @@ export * from "./channels/webhook/transport.js";
 export * from "./channels/feishu/renderer.js";
 export * from "./channels/feishu/transport.js";
 export * from "./config/schema.js";
+export * from "./i18n/index.js";
 export { default as createPiPulseExtension } from "./extension/pi.js";
 //# sourceMappingURL=index.js.map

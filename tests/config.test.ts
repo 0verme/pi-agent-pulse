@@ -3,6 +3,14 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONFIG, normalizeConfig } from "../src/config/schema.js";
 
 describe("configuration", () => {
+	it("defaults locale to auto and normalizes supported and invalid values", () => {
+		expect(normalizeConfig({}).locale).toBe("auto");
+		expect(normalizeConfig({ locale: "zh-CN" }).locale).toBe("zh-CN");
+		expect(normalizeConfig({ locale: "en-US" }).locale).toBe("en-US");
+		expect(normalizeConfig({ locale: "fr-FR" }).locale).toBe("auto");
+		expect(DEFAULT_CONFIG.locale).toBe("auto");
+	});
+
 	it("keeps channels independent and clamps unsafe timeout values", () => {
 		const config = normalizeConfig({
 			channels: {
