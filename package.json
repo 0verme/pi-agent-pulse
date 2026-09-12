@@ -1,6 +1,6 @@
 {
 	"name": "pi-agent-pulse",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "Task monitoring, watchdogs and pluggable notifications for Pi Agent.",
 	"repository": {
 		"type": "git",

@@ -2,7 +2,7 @@
 
 Pi Agent 的任务状态观察、Watchdog 与可插拔 outbound notification layer。
 
-> **v0.1.1**：修复 Feishu 用户可读时间的显示时区；当前版本只观察任务，不控制 Pi。
+> **v0.2.0（准备发布）**：收紧隐私默认值并修复 Generic Webhook 的 IPv4-mapped IPv6 地址校验；当前版本只观察任务，不控制 Pi。
 
 ## What is it?
 
@@ -188,7 +188,7 @@ flowchart TD
 
 ## Package Strategy
 
-- npm package 是 v0.1.1 的推荐安装路径；GitHub Git package 继续作为源码安装方式。
+- npm package 计划以 v0.2.0 发布，并继续作为推荐安装路径；GitHub Git package 继续作为源码安装方式。
 - npm package 与 GitHub package 共用已提交的 `dist/` artifact；Git package installer 不自动 build。
 - `npm pack` tarball 只包含 `dist/`、`package.json`、`README.md` 和 `LICENSE` 所需的发布内容，并由 `npm run test:package` 做临时安装与 extension import smoke。
 - `@earendil-works/pi-coding-agent` 是 host-provided peer dependency，开发时固定使用 `0.84.4`；已验证兼容范围为 `>=0.84.4 <0.86.0`。
@@ -207,7 +207,7 @@ npm run test:package
 
 `npm run test:package` 不会向 Feishu 或任何真实 webhook 发送请求；它会运行 `npm pack`、检查 tarball 内容、在临时目录安装 package，并 import `dist/extension/pi.js` 验证 extension exports。
 
-## Non-goals for v0.1
+## Non-goals for v0.2.0
 
 本轮明确不实现：
 
