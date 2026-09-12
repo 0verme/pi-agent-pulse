@@ -1,4 +1,4 @@
-# Pi Pulse
+# Pi Agent Pulse
 
 Pi Agent 的任务状态与 Watchdog 通知插件，让长任务运行时不必一直守着终端。
 
@@ -8,9 +8,9 @@ Pi Agent 的任务状态与 Watchdog 通知插件，让长任务运行时不必�
 [![CI](https://github.com/0verme/pi-agent-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/0verme/pi-agent-pulse/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/0verme/pi-agent-pulse)](LICENSE)
 
-## 为什么需要 Pi Pulse
+## 为什么需要 Pi Agent Pulse
 
-Pi Agent 的长任务可能运行较久；Pi Pulse 会在关键 lifecycle 和 Watchdog 状态发生时主动通知，让你不必一直守着 Pi 终端。
+Pi Agent 的长任务可能运行较久；Pi Agent Pulse 会在关键 lifecycle 和 Watchdog 状态发生时主动通知，让你不必一直守着 Pi 终端。
 
 它不需要额外的 Dashboard、数据库、Web Server 或常驻服务。当前定位是 **Pi Agent Extension**，只 OBSERVE，不 stop、kill 或 abort Pi task。
 
@@ -73,7 +73,7 @@ Linux/macOS：
 安装或修改配置后，重新启动 Pi / Pi Web，使 extension 重新加载。在 Pi 中运行：
 
 ```text
-请回复一句“Pi Pulse smoke test passed”，然后结束任务。
+请回复一句“Pi Agent Pulse smoke test passed”，然后结束任务。
 ```
 
 Feishu 中应看到类似的开始和结束通知：
@@ -100,7 +100,7 @@ Feishu 中应看到类似的开始和结束通知：
 
 ## Requirements / Compatibility
 
-Pi Pulse 是 **Pi Agent Extension**，需要运行在兼容的 Pi Agent 环境中；当前没有脱离 Pi 独立使用的产品目标。
+Pi Agent Pulse 是 **Pi Agent Extension**，需要运行在兼容的 Pi Agent 环境中；当前没有脱离 Pi 独立使用的产品目标。
 
 - **支持范围（package metadata）**：`@earendil-works/pi-coding-agent >=0.84.4 <0.86.0`
 - **Node.js**：`>=22.19.0`
@@ -147,7 +147,7 @@ Feishu webhook 只接受以下官方 API 前缀：`https://open.feishu.cn/open-a
 
 ## Privacy & Security
 
-- Pi Pulse 只 OBSERVE，不调用 Pi 的 stop、kill、abort 或其他任务控制 API。
+- Pi Agent Pulse 只 OBSERVE，不调用 Pi 的 stop、kill、abort 或其他任务控制 API。
 - `privacy.includeSummary` 默认是 `false`。默认通知主要包含任务状态、时间、耗时（完成事件）、允许的仓库/分支等上下文和 Watchdog 信息；固定的 Watchdog 说明文字可能仍会出现，但默认不会携带用户输入或模型输出摘要。
 - 将 `privacy.includeSummary` 显式设置为 `true` 后，通知可能包含经过截断和清理的用户输入或模型输出原文片段。截断/清理不等于去除敏感性；只有在你信任目标 IM 或 Webhook 接收端时才应启用。
 - `TaskEvent` schema 不包含 tool arguments、源码、完整 tool result 或环境变量；summary 是否出现仍由 `privacy.includeSummary` 控制。
@@ -219,4 +219,4 @@ npm run test:package
 
 npm package 和 GitHub package 共用已提交的 `dist/` artifact；Git package installer 不自动 build。`npm pack` 的发布内容由 package smoke 检查；`npm run test:package` 不会向 Feishu 或任何真实 webhook 发送请求，而是在临时目录检查 tarball、安装 package 并 import extension。
 
-当前明确不包含 Dashboard、Web UI、Control Plane、数据库、remote control、inbound bot 或更多 IM adapter。Pi Pulse 的产品边界仍然是运行在 Pi Agent 内的任务观察、Watchdog 和 outbound notification。
+当前明确不包含 Dashboard、Web UI、Control Plane、数据库、remote control、inbound bot 或更多 IM adapter。Pi Agent Pulse 的产品边界仍然是运行在 Pi Agent 内的任务观察、Watchdog 和 outbound notification。
