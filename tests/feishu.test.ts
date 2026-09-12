@@ -75,11 +75,14 @@ describe("Feishu adapter boundary", () => {
 		});
 
 		const text = renderFeishuPayload(event, { locale: "zh-CN" }).content.text;
+		const englishText = renderFeishuPayload(event, { locale: "en-US" }).content.text;
 		expect(text).toContain("[Pi Pulse] 任务开始");
 		expect(text).toContain("任务：task-中文");
 		expect(text).toContain("状态：运行中（Pi 事件）");
 		expect(text).toContain("分支：未知");
-		expect(text).toContain("耗时：未知");
+		expect(text).not.toContain("耗时：");
+		expect(englishText).toContain("[Pi Pulse] Task started");
+		expect(englishText).not.toContain("Duration:");
 		expect(text).toContain("摘要：请帮我修复这个 Issue");
 		expect(text).not.toContain("TASK_STARTED");
 	});

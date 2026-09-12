@@ -83,6 +83,9 @@ export function formatDisplayTimestamp(value, timezone) {
 function isTaskEndEvent(event) {
     return event.type === "TASK_COMPLETED" || event.type === "TASK_FAILED" || event.type === "TASK_ABORTED";
 }
+function shouldRenderDuration(event) {
+    return event.type !== "TASK_STARTED";
+}
 function warnMissingStartedAt() {
     try {
         process.emitWarning("[pi-pulse] Task end event has no valid startedAt; start time omitted.");
@@ -121,7 +124,9 @@ export function renderFeishuText(event, options = {}) {
         field(fieldLabel("Host", locale), display(event.host, locale), locale),
         field(fieldLabel("Repository", locale), display(event.repo, locale), locale),
         field(fieldLabel("Branch", locale), display(event.branch, locale), locale),
-        field(fieldLabel("Duration", locale), formatDuration(event.durationMs, locale), locale),
+        ...(shouldRenderDuration(event)
+            ? [field(fieldLabel("Duration", locale), formatDuration(event.durationMs, locale), locale)]
+            : []),
         ...lifecycleTimes(event, timestampFormatter, locale),
     ];
     if (event.currentTool)
