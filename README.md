@@ -66,6 +66,32 @@ Linux/macOS：
 }
 ```
 
+#### 也可以让 Agent 自动配置
+
+如果 `pi-agent-pulse` 已经安装完成，可以直接把飞书 Webhook 交给当前机器上的可信本地 Agent，让它自动确认 Pi / Pi Web 的运行用户、HOME、配置路径并完成重启和验证。
+
+```text
+帮我配置 pi-agent-pulse 的飞书通知。
+
+飞书 Webhook：
+<YOUR_FEISHU_WEBHOOK_URL>
+
+要求：
+- 自动确认 Pi / Pi Web 实际运行用户和 HOME
+- 配置正确的 ~/.pi/agent/pi-pulse.json
+- locale 使用 zh-CN
+- displayTimezone 使用 Asia/Shanghai
+- 保留已有配置，不覆盖其他设置
+- Webhook 按 secret 处理，不回显、不写入 Git 或日志
+- 配置文件权限设为 600
+- 按当前运行方式安全重启 Pi / Pi Web
+- 确认 pi-agent-pulse 重新 Loaded
+- 执行一次 smoke test
+- 最后只汇报配置路径、重启结果和测试结果，不输出完整 Webhook
+```
+
+> Webhook 属于敏感凭证，请只提供给可信的本地 Agent，不要提交到 Git。
+
 不要把真实 webhook URL 提交到 Git。
 
 ### 3. 重启 Pi 并验证
