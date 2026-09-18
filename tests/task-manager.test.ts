@@ -164,6 +164,118 @@ describe("TaskManager and Watchdog", () => {
 		expect(manager.getTask("session-1")).toBeUndefined();
 	});
 
+	it("includes accumulated durationMs on long-task warnings and omits it from TASK_STARTED", () => {
+		const clock = new FakeClock();
+		const events: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			thresholds: {
+				longTaskNoticeMs: 100,
+				longTaskWarningMs: 200,
+				longTaskCriticalMs: 300,
+				longToolMs: 10_000,
+				stalledMs: 10_000,
+			},
+			taskIdFactory: () => "task-warning-duration",
+			eventIdFactory: () => `event-${events.length + 1}`,
+			onEvent: (event) => events.push(event),
+		});
+
+		const started = manager.startTask({
+			sessionId: "session-warning-duration",
+			taskId: "task-warning-duration",
+		});
+		expect(started?.durationMs).toBeUndefined();
+
+		clock.advanceBy(100);
+		clock.advanceBy(100);
+		clock.advanceBy(100);
+
+		const warnings = events.filter((event) => event.type === "TASK_WARNING");
+		expect(warnings).toHaveLength(3);
+		expect(warnings.map((event) => event.durationMs)).toEqual([100, 200, 300]);
+		manager.endSession("session-warning-duration");
+	});
+
+	it("includes accumulated durationMs on long-tool warnings", () => {
+		const clock = new FakeClock();
+		const events: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			thresholds: {
+				longTaskNoticeMs: 10_000,
+				longTaskWarningMs: 20_000,
+				longTaskCriticalMs: 30_000,
+				longToolMs: 50,
+				stalledMs: 10_000,
+			},
+			taskIdFactory: () => "task-long-tool-duration",
+			eventIdFactory: () => `event-${events.length + 1}`,
+			onEvent: (event) => events.push(event),
+		});
+
+		manager.startTask({ sessionId: "session-long-tool-duration", taskId: "task-long-tool-duration" });
+		manager.startTool("session-long-tool-duration", { callId: "call-1", name: "bash" });
+		clock.advanceBy(50);
+
+		const longToolWarning = events.find(
+			(event) => event.type === "TASK_WARNING" && event.metadata?.signal === "LONG_TOOL",
+		);
+		expect(longToolWarning?.durationMs).toBe(50);
+		manager.endSession("session-long-tool-duration");
+	});
+
+	it("includes accumulated durationMs on stalled events", () => {
+		const clock = new FakeClock();
+		const events: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			thresholds: {
+				longTaskNoticeMs: 10_000,
+				longTaskWarningMs: 20_000,
+				longTaskCriticalMs: 30_000,
+				longToolMs: 10_000,
+				stalledMs: 150,
+			},
+			taskIdFactory: () => "task-stalled-duration",
+			eventIdFactory: () => `event-${events.length + 1}`,
+			onEvent: (event) => events.push(event),
+		});
+
+		manager.startTask({ sessionId: "session-stalled-duration", taskId: "task-stalled-duration" });
+		clock.advanceBy(150);
+
+		const stalled = events.find((event) => event.type === "TASK_STALLED");
+		expect(stalled?.durationMs).toBe(150);
+		manager.endSession("session-stalled-duration");
+	});
+
+	it("keeps the explicit terminal durationMs after intermediate warnings", () => {
+		const clock = new FakeClock();
+		const events: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			thresholds: {
+				longTaskNoticeMs: 50,
+				longTaskWarningMs: 100,
+				longTaskCriticalMs: 150,
+				longToolMs: 10_000,
+				stalledMs: 10_000,
+			},
+			taskIdFactory: () => "task-terminal-duration",
+			eventIdFactory: () => `event-${events.length + 1}`,
+			onEvent: (event) => events.push(event),
+		});
+
+		manager.startTask({ sessionId: "session-terminal-duration", taskId: "task-terminal-duration" });
+		clock.advanceBy(50);
+		const completed = manager.completeTask("session-terminal-duration");
+
+		expect(events.some((event) => event.type === "TASK_WARNING" && event.durationMs === 50)).toBe(true);
+		expect(completed?.durationMs).toBe(50);
+		expect(completed?.endedAt).toBe(new Date(50).toISOString());
+	});
+
 	it("isolates multiple sessions and deduplicates long-tool warnings", () => {
 		const clock = new FakeClock();
 		const events: Array<{ type: string; taskId: string; state: string; metadata?: unknown }> = [];

@@ -276,6 +276,7 @@ export class TaskManager {
             type,
             eventId: this.eventIdFactory(),
             timestamp,
+            durationMs: this.resolveDurationMs(type, timestamp, task.startedAt, options.durationMs),
             taskId: task.taskId,
             sessionId: task.sessionId,
             state: task.state,
@@ -287,12 +288,25 @@ export class TaskManager {
             startedAt: task.startedAt,
             lastActivityAt: task.lastActivityAt,
             endedAt: options.endedAt ?? task.endedAt,
-            durationMs: options.durationMs,
             currentTool,
             summary: options.useStoredSummary ? task.summary : options.summary,
             warnings: task.warnings,
             metadata,
         });
+    }
+    /**
+     * TASK_STARTED has no meaningful elapsed time, so it stays without duration.
+     * Every other event reports the accumulated time from the task start, while an
+     * explicit terminal duration keeps priority over the computed fallback.
+     */
+    resolveDurationMs(type, timestamp, startedAt, explicit) {
+        if (typeof explicit === "number" && Number.isFinite(explicit))
+            return explicit;
+        if (type === "TASK_STARTED")
+            return undefined;
+        if (!Number.isFinite(timestamp) || !Number.isFinite(startedAt))
+            return undefined;
+        return Math.max(0, timestamp - startedAt);
     }
     emitEvent(event) {
         try {

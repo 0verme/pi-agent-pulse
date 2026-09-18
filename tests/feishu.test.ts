@@ -6,7 +6,9 @@ import {
 	renderFeishuPayload,
 } from "../src/channels/feishu/renderer.js";
 import { FeishuChannel, type FeishuRequest } from "../src/channels/feishu/transport.js";
-import { createTaskEvent } from "../src/core/events.js";
+import { createTaskEvent, type TaskEvent } from "../src/core/events.js";
+import { TaskManager } from "../src/core/task-manager.js";
+import { FakeClock } from "./helpers/fake-clock.js";
 
 const FIXED_TIMESTAMP = "2026-09-11T15:20:00.000Z";
 
@@ -85,6 +87,38 @@ describe("Feishu adapter boundary", () => {
 		expect(englishText).not.toContain("Duration:");
 		expect(text).toContain("摘要：请帮我修复这个 Issue");
 		expect(text).not.toContain("TASK_STARTED");
+	});
+
+	it("renders accumulated duration for manager-emitted long-task warnings and stalled events", () => {
+		const clock = new FakeClock();
+		const events: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			thresholds: {
+				longTaskNoticeMs: 100_000,
+				longTaskWarningMs: 600_000,
+				longTaskCriticalMs: 900_000,
+				longToolMs: 600_000,
+				stalledMs: 150_000,
+			},
+			taskIdFactory: () => "task-render-duration",
+			eventIdFactory: () => `event-${events.length + 1}`,
+			onEvent: (event) => events.push(event),
+		});
+
+		manager.startTask({ sessionId: "session-render-duration", taskId: "task-render-duration" });
+		clock.advanceBy(100_000);
+		const warning = events.find((event) => event.type === "TASK_WARNING");
+		expect(warning?.durationMs).toBe(100_000);
+
+		clock.advanceBy(50_000);
+		const stalled = events.find((event) => event.type === "TASK_STALLED");
+		expect(stalled?.durationMs).toBe(150_000);
+
+		if (!warning || !stalled) throw new Error("expected manager-emitted warning and stalled events");
+		expect(renderFeishuPayload(warning, { locale: "zh-CN" }).content.text).toContain("耗时：1分40秒");
+		expect(renderFeishuPayload(stalled, { locale: "zh-CN" }).content.text).toContain("耗时：2分30秒");
+		manager.endSession("session-render-duration");
 	});
 
 	it("uses the system local timezone by default", () => {

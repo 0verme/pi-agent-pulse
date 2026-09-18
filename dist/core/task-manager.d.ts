@@ -81,6 +81,12 @@ export declare class TaskManager {
     private findTask;
     private setState;
     private toEvent;
+    /**
+     * TASK_STARTED has no meaningful elapsed time, so it stays without duration.
+     * Every other event reports the accumulated time from the task start, while an
+     * explicit terminal duration keeps priority over the computed fallback.
+     */
+    private resolveDurationMs;
     private emitEvent;
     private warn;
 }
