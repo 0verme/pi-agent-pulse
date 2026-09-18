@@ -4,7 +4,7 @@ import { systemClock, Watchdog } from "./watchdog.js";
 const DEFAULT_PRIVACY = {
     includeHost: true,
     includeWorkdir: false,
-    includeSummary: false,
+    includeSummary: true,
 };
 function timestampOrNow(value, now) {
     return typeof value === "number" && Number.isFinite(value) ? value : now;

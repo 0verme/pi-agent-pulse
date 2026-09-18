@@ -144,9 +144,9 @@ Generic Webhook 和 Feishu transport 都是单次请求，使用 timeout、`redi
 
 领域事件是出站边界。默认策略和边界如下：
 
-- `privacy.includeSummary` 默认是 `false`，因此默认事件不包含用户输入或模型输出衍生的 summary；固定的 Watchdog 说明文字可以保留
-- 显式开启 `privacy.includeSummary` 后，summary 可能包含经过截断和清理的用户输入或模型输出原文片段。截断/清理不等于去除敏感性，接收端必须被视为可信边界
-- `auto` locale detection 只在 adapter 内存中读取用户输入；默认关闭 summary 时，输入原文不进入 `TaskEvent`
+- `privacy.includeSummary` 默认是 `true`，因此默认事件会包含经过安全清洗和长度截断的任务摘要（来自用户输入或模型输出）；固定的 Watchdog 说明文字也保留
+- 摘要仍经过 `sanitizeText`：敏感行替换为 `[redacted]`，长度受限（TaskManager 层最多 240 字符）。截断/清理不等于去除敏感性，接收端必须被视为可信边界
+- 将 `privacy.includeSummary` 显式设置为 `false` 可关闭摘要；`auto` locale detection 只在 adapter 内存中读取用户输入
 - tool args 不进入事件；只允许 bounded tool name
 - `TaskEvent` schema 不包含源码、完整 tool result 或环境变量
 - `workdir` 默认不包含；显式开启后仍裁剪长度
