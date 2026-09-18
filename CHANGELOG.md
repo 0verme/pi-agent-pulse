@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0] - 2026-09-18
+
+### Behavior Change
+
+- `privacy.includeSummary` 默认值由 `false` 改回 `true`，在配置层（`DEFAULT_CONFIG`）与 `TaskManager`（`DEFAULT_PRIVACY`）同时生效。未配置 privacy 时，通知默认包含经过现有安全清洗和长度截断的任务摘要。
+- 现有安全边界没有放宽：摘要仍经过 `sanitizeText`（敏感行替换为 `[redacted]`），并在 TaskManager 层限制为 240 字符；tool arguments、完整 tool result、源码、环境变量、token、webhook、secret 等仍不会进入 `TaskEvent`。
+- 隐私敏感环境可将 `privacy.includeSummary` 显式设置为 `false`，关闭摘要，恢复为不含用户输入或模型输出摘要的通知。
+
+### Changed
+
+- README 默认值表格、Privacy & Security 说明、ARCHITECTURE 安全边界和 `examples/pi-pulse.json` 已同步新的默认值。
+- 补充 config、TaskManager 和 extension 层测试，覆盖默认包含、显式关闭、显式开启以及清洗与截断仍然生效。
+
 ## [0.2.0] - 2026-09-12
 
 ### Breaking / Behavior Change

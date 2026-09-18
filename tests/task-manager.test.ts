@@ -25,7 +25,7 @@ function createManager(
 }
 
 describe("TaskManager and Watchdog", () => {
-	it("omits user summaries by default while retaining system warning context", () => {
+	it("includes bounded user summaries by default while retaining system warning context", () => {
 		const clock = new FakeClock();
 		const events: TaskEvent[] = [];
 		const manager = new TaskManager({
@@ -45,20 +45,80 @@ describe("TaskManager and Watchdog", () => {
 		const started = manager.startTask({
 			sessionId: "session-privacy-default",
 			taskId: "task-privacy-default",
-			summary: "user chat input that must stay private",
+			summary: "user chat input",
 		});
 		clock.advanceBy(50);
-		const completed = manager.completeTask("session-privacy-default", "model output that must stay private", 50);
+		const completed = manager.completeTask("session-privacy-default", "model output", 50);
 
-		expect(started?.summary).toBeUndefined();
-		expect(completed?.summary).toBeUndefined();
+		expect(started?.summary).toBe("user chat input");
+		expect(completed?.summary).toBe("model output");
 		expect(events.find((event) => event.type === "TASK_STALLED")?.summary).toBe(
 			"No Pi activity was observed for the stalled threshold",
 		);
+	});
+
+	it("omits summaries from every event when privacy explicitly disables them", () => {
+		const clock = new FakeClock();
+		const events: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			privacy: { includeSummary: false },
+			thresholds: {
+				longTaskNoticeMs: 10_000,
+				longTaskWarningMs: 20_000,
+				longTaskCriticalMs: 30_000,
+				longToolMs: 10_000,
+				stalledMs: 50,
+			},
+			taskIdFactory: () => "task-privacy-opt-out",
+			eventIdFactory: () => `event-${events.length + 1}`,
+			onEvent: (event) => events.push(event),
+		});
+
+		const started = manager.startTask({
+			sessionId: "session-privacy-opt-out",
+			taskId: "task-privacy-opt-out",
+			summary: "user chat input that must stay private",
+		});
+		clock.advanceBy(50);
+		const completed = manager.completeTask("session-privacy-opt-out", "model output that must stay private", 50);
+
+		expect(started?.summary).toBeUndefined();
+		expect(completed?.summary).toBeUndefined();
 		for (const event of events) {
 			expect(event.summary ?? "").not.toContain("user chat input");
 			expect(event.summary ?? "").not.toContain("model output");
 		}
+	});
+
+	it("keeps summary sanitization and truncation active when summaries are enabled", () => {
+		const clock = new FakeClock();
+		const events: TaskEvent[] = [];
+		const manager = new TaskManager({
+			clock,
+			privacy: { includeSummary: true },
+			taskIdFactory: () => "task-privacy-sanitize",
+			eventIdFactory: () => `event-${events.length + 1}`,
+			onEvent: (event) => events.push(event),
+		});
+
+		const started = manager.startTask({
+			sessionId: "session-privacy-sanitize",
+			taskId: "task-privacy-sanitize",
+			summary: "deploy with token=super-secret-value\nprocess.env.API_KEY\n" + "x".repeat(400),
+		});
+		const completed = manager.completeTask(
+			"session-privacy-sanitize",
+			"webhook https://hooks.example.test/pi?token=super-secret-value",
+			1,
+		);
+
+		const startedSummary = started?.summary ?? "";
+		expect(startedSummary).not.toContain("super-secret-value");
+		expect(startedSummary).not.toContain("process.env.API_KEY");
+		expect(startedSummary.length).toBeLessThanOrEqual(240);
+		expect(Array.from(startedSummary)).toHaveLength(240);
+		expect(completed?.summary).toBe("[redacted]");
 	});
 
 	it("preserves summaries when explicitly enabled", () => {

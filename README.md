@@ -155,7 +155,7 @@ Pi Agent Pulse 是 **Pi Agent Extension**，需要运行在兼容的 Pi Agent �
 | `watchdog.stalledMinutes`          |                       `15` | 无 Pi activity 时的 possibly-stalled threshold                                |
 | `privacy.includeHost`              |                     `true` | 是否在事件中包含 host                                                         |
 | `privacy.includeWorkdir`           |                    `false` | 是否在事件中包含 working directory                                            |
-| `privacy.includeSummary`           |                    `false` | 是否包含用户输入或模型输出衍生的 summary                                      |
+| `privacy.includeSummary`           |                     `true` | 是否包含经过清洗和截断的用户输入或模型输出 summary                            |
 
 配置文件缺失、JSON malformed 或字段类型不符合预期时，会安全回退到默认配置；两个 channel 彼此独立。
 
@@ -174,9 +174,10 @@ Feishu webhook 只接受以下官方 API 前缀：`https://open.feishu.cn/open-a
 ## Privacy & Security
 
 - Pi Agent Pulse 只 OBSERVE，不调用 Pi 的 stop、kill、abort 或其他任务控制 API。
-- `privacy.includeSummary` 默认是 `false`。默认通知主要包含任务状态、时间、耗时（完成事件）、允许的仓库/分支等上下文和 Watchdog 信息；固定的 Watchdog 说明文字可能仍会出现，但默认不会携带用户输入或模型输出摘要。
-- 将 `privacy.includeSummary` 显式设置为 `true` 后，通知可能包含经过截断和清理的用户输入或模型输出原文片段。截断/清理不等于去除敏感性；只有在你信任目标 IM 或 Webhook 接收端时才应启用。
-- `TaskEvent` schema 不包含 tool arguments、源码、完整 tool result 或环境变量；summary 是否出现仍由 `privacy.includeSummary` 控制。
+- `privacy.includeSummary` 默认是 `true`。默认通知会包含经过现有安全清洗和长度截断的任务摘要（来自用户输入或模型输出），以及任务状态、时间、耗时（完成事件）、允许的仓库/分支等上下文和 Watchdog 信息。
+- 摘要仍受现有安全边界约束：敏感行（token、password、secret、credential、authorization、webhook、环境变量引用等）会替换为 `[redacted]`，并在 TaskManager 层限制为 240 字符。截断/清理不等于去除敏感性；接收端仍应被视为可信边界。
+- 隐私敏感环境可将 `privacy.includeSummary` 显式设置为 `false`，关闭摘要，使通知回到不含用户输入或模型输出摘要的形态。
+- `TaskEvent` schema 不包含 tool arguments、源码、完整 tool result 或环境变量；summary 是否出现由 `privacy.includeSummary` 控制。
 - `privacy.includeWorkdir` 默认是 `false`；`auto` 语言识别只在 adapter 内存中读取输入，不额外写入事件或日志。
 - 不在日志中输出 webhook URL、token、cookie、secret 或原始 payload；真实 webhook secret 也不应提交到 Git。
 - Generic Webhook 会校验 HTTP(S)、credentials，以及显式提供的常见 localhost、private IPv4、private IPv6 和 IPv4-mapped IPv6 literal；transport 使用 timeout、`redirect: "error"` 和单次请求。这个 URL 校验只拒绝显式提供的本地/私网地址，不保证阻止域名解析后指向私网地址的情况，因此不是完整 SSRF 防护。

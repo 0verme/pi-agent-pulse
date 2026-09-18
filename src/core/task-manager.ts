@@ -67,7 +67,7 @@ interface ManagedTask extends Omit<ManagedTaskSnapshot, "currentTools"> {
 const DEFAULT_PRIVACY: TaskManagerPrivacy = {
 	includeHost: true,
 	includeWorkdir: false,
-	includeSummary: false,
+	includeSummary: true,
 };
 
 function timestampOrNow(value: number | undefined, now: number): number {

@@ -14,15 +14,19 @@ describe("configuration", () => {
 		expect(DEFAULT_CONFIG.locale).toBe("auto");
 	});
 
-	it("defaults summary inclusion to off and preserves explicit opt-in through file loading", () => {
-		expect(normalizeConfig({}).privacy.includeSummary).toBe(false);
-		expect(DEFAULT_CONFIG.privacy.includeSummary).toBe(false);
+	it("defaults summary inclusion to on and preserves explicit opt-out through file loading", () => {
+		expect(normalizeConfig({}).privacy.includeSummary).toBe(true);
+		expect(normalizeConfig({ privacy: {} }).privacy.includeSummary).toBe(true);
+		expect(DEFAULT_CONFIG.privacy.includeSummary).toBe(true);
+		expect(normalizeConfig({ privacy: { includeSummary: false } }).privacy.includeSummary).toBe(false);
 		expect(normalizeConfig({ privacy: { includeSummary: true } }).privacy.includeSummary).toBe(true);
 
 		const directory = mkdtempSync(join(tmpdir(), "pi-agent-pulse-config-test-"));
 		const filePath = join(directory, "pi-pulse.json");
 		try {
 			writeFileSync(filePath, JSON.stringify({}));
+			expect(loadConfigFile(filePath).privacy.includeSummary).toBe(true);
+			writeFileSync(filePath, JSON.stringify({ privacy: { includeSummary: false } }));
 			expect(loadConfigFile(filePath).privacy.includeSummary).toBe(false);
 			writeFileSync(filePath, JSON.stringify({ privacy: { includeSummary: true } }));
 			expect(loadConfigFile(filePath).privacy.includeSummary).toBe(true);

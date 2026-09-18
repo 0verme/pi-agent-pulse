@@ -16,7 +16,7 @@ export const DEFAULT_CONFIG = {
     privacy: {
         includeHost: true,
         includeWorkdir: false,
-        includeSummary: false,
+        includeSummary: true,
     },
 };
 function isRecord(value) {
