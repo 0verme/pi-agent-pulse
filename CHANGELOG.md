@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.1] - 2026-09-18
+
+### Fixed
+
+- 修复 TASK_WARNING、TASK_STALLED 等运行中通知以及 long-tool 通知显示「耗时：未知」的问题；这些事件现在会携带正确的累计耗时。
+- 运行中事件的 `durationMs` 由 core / `TaskManager` 统一生成，显式终态时长仍然优先。
+- `TASK_STARTED` 仍不展示耗时。
+- 未改变 Watchdog 的阈值与告警触发行为。
+
 ## [0.3.0] - 2026-09-18
 
 ### Behavior Change
